@@ -2,14 +2,19 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/models"
+	"github.com/bladeacer/ocd/internal/sources"
 )
 
 type Selection struct {
@@ -21,14 +26,22 @@ type viewState int
 const (
 	stateLoading viewState = iota
 	stateTable
+	stateSearch
 	stateConfirm
 )
 
 type model struct {
-	result  *models.FetchResult
-	state   viewState
-	spinner spinner.Model
-	tbl     table.Model
+	fetcher  *sources.Fetcher
+	result   *models.FetchResult
+	force    bool
+	state    viewState
+	spinner  spinner.Model
+	tbl      table.Model
+	searchIn textinput.Model
+
+	startTime    time.Time
+	loadMessages []string
+	loadIndex    int
 
 	rows     []table.Row
 	filtered []table.Row
@@ -41,25 +54,30 @@ type model struct {
 
 	selectedVersion string
 
-	ready bool
 	err   error
-
-	width  int
-	height int
+	width int
 }
 
-func New(result *models.FetchResult) *model {
+type dataLoadedMsg struct {
+	result *models.FetchResult
+}
+
+type tickMsg struct{}
+
+func New(f *sources.Fetcher, force bool) *model {
 	s := spinner.New()
 	s.Style = spinnerStyle
+	s.Spinner = spinner.Pulse
 
 	columns := []table.Column{
 		{Title: "ID", Width: 5},
 		{Title: "Version", Width: 14},
-		{Title: "Type", Width: 10},
+		{Title: "Type", Width: 8},
 		{Title: "Date", Width: 12},
-		{Title: "Docker", Width: 10},
-		{Title: "Electron", Width: 12},
-		{Title: "Chromium", Width: 12},
+		{Title: "Docker", Width: 8},
+		{Title: "Electron", Width: 10},
+		{Title: "Chromium", Width: 10},
+		{Title: "CSS", Width: 6},
 	}
 
 	t := table.New(
@@ -69,32 +87,74 @@ func New(result *models.FetchResult) *model {
 	)
 	t.SetStyles(tableStyles())
 
+	ti := textinput.New()
+	ti.Placeholder = "Type to filter versions..."
+	ti.CharLimit = 50
+	ti.Width = 40
+
 	m := &model{
-		result:          result,
-		state:           stateTable,
+		fetcher:         f,
+		force:           force,
+		state:           stateLoading,
 		spinner:         s,
 		tbl:             t,
+		searchIn:        ti,
+		startTime:       time.Now(),
 		showMobile:      true,
 		showEarlyAccess: true,
 		sortByPriority:  true,
-		ready:           true,
+		loadMessages: []string{
+			"Fetching RSS changelog...",
+			"Checking Docker Hub tags...",
+			"Loading Electron-Chromium map...",
+			"Compiling version data...",
+			"Almost done...",
+		},
 	}
 
-	m.buildRows()
-	m.applyFilters()
 	return m
 }
 
 func (m *model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return tea.Batch(m.spinner.Tick, m.fetchData, m.loadTicker)
+}
+
+func (m *model) loadTicker() tea.Msg {
+	time.Sleep(2 * time.Second)
+	return tickMsg{}
+}
+
+func (m *model) fetchData() tea.Msg {
+	result := m.fetcher.FetchAll(m.force)
+	return dataLoadedMsg{result: result}
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		m.height = msg.Height
 		m.updateTableDimensions()
+		return m, nil
+
+	case dataLoadedMsg:
+		m.result = msg.result
+		if msg.result.Error != nil {
+			m.err = msg.result.Error
+			return m, nil
+		}
+		m.buildRows()
+		m.applyFilters()
+		m.state = stateTable
+		return m, nil
+
+	case tickMsg:
+		if m.state == stateLoading {
+			m.loadIndex++
+			if m.loadIndex >= len(m.loadMessages) {
+				m.loadIndex = len(m.loadMessages) - 1
+			}
+			return m, m.loadTicker
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -111,10 +171,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
+	case stateLoading:
+		return m.handleLoadingKey(msg)
 	case stateTable:
 		return m.handleTableKey(msg)
+	case stateSearch:
+		return m.handleSearchKey(msg)
 	case stateConfirm:
 		return m.handleConfirmKey(msg)
+	}
+	return m, nil
+}
+
+func (m *model) handleLoadingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "q" || msg.String() == "ctrl+c" {
+		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -126,6 +197,12 @@ func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		return m.selectRow()
+
+	case "/":
+		m.state = stateSearch
+		m.searchIn.Focus()
+		m.searchIn.SetValue("")
+		return m, nil
 
 	case "m":
 		m.showMobile = !m.showMobile
@@ -149,6 +226,43 @@ func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "escape", "ctrl+c":
+		m.state = stateTable
+		m.searchQuery = ""
+		m.searchIn.SetValue("")
+		m.searchIn.Blur()
+		m.applyFilters()
+		return m, nil
+
+	case "enter", "tab":
+		m.state = stateTable
+		m.searchQuery = m.searchIn.Value()
+		m.searchIn.Blur()
+		m.applyFilters()
+		return m, nil
+
+	case "backspace":
+		val := m.searchIn.Value()
+		if len(val) > 0 {
+			m.searchIn.SetValue(val[:len(val)-1])
+		}
+		m.searchQuery = m.searchIn.Value()
+		m.applyFilters()
+		return m, nil
+	}
+
+	if len(msg.String()) == 1 {
+		m.searchIn, _ = m.searchIn.Update(msg)
+		m.searchQuery = m.searchIn.Value()
+		m.applyFilters()
+		return m, nil
+	}
+
+	return m, nil
+}
+
 func (m *model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "enter":
@@ -166,20 +280,13 @@ func (m *model) selectRow() (tea.Model, tea.Cmd) {
 	if row == nil {
 		return m, nil
 	}
-
-	version := row[1]
-	m.selectedVersion = version
+	m.selectedVersion = row[1]
 	m.state = stateConfirm
 	return m, nil
 }
 
 func (m *model) applyFilters() {
 	var filtered []table.Row
-
-	dockerMap := make(map[string]bool)
-	for _, dt := range m.result.Docker {
-		dockerMap[dt.Version] = true
-	}
 
 	for _, row := range m.rows {
 		version := row[1]
@@ -190,10 +297,15 @@ func (m *model) applyFilters() {
 			continue
 		}
 		if !m.showEarlyAccess {
+			var isEarly bool
 			for _, v := range m.result.RSS {
-				if v.Version == version && v.IsEarly {
-					continue
+				if v.Version == version {
+					isEarly = v.IsEarly
+					break
 				}
+			}
+			if isEarly {
+				continue
 			}
 		}
 		if m.foundOnly && status != statusFoundStr {
@@ -205,12 +317,15 @@ func (m *model) applyFilters() {
 				continue
 			}
 		}
-
 		filtered = append(filtered, row)
 	}
 
 	m.filtered = filtered
 	m.updateTableData()
+}
+
+func (m *model) cssDirFor(version string) string {
+	return filepath.Join(".obsidian_cache", "css", version, "app.css")
 }
 
 func (m *model) updateTableData() {
@@ -237,94 +352,6 @@ func (m *model) updateTableData() {
 	})
 
 	m.tbl.SetRows(sorted)
-}
-
-func parseVersion(v string) []int {
-	parts := strings.Split(v, ".")
-	ints := make([]int, 3)
-	for i, p := range parts {
-		if i < 3 {
-			ints[i] = atoi(p)
-		}
-	}
-	return ints
-}
-
-func atoi(s string) int {
-	var n int
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
-		}
-	}
-	return n
-}
-
-func compareVersions(a, b []int) int {
-	for i := 0; i < 3; i++ {
-		va := 0
-		vb := 0
-		if i < len(a) {
-			va = a[i]
-		}
-		if i < len(b) {
-			vb = b[i]
-		}
-		if va != vb {
-			return va - vb
-		}
-	}
-	return 0
-}
-
-func sortPriority(row table.Row) int {
-	switch row[4] {
-	case statusFoundStr:
-		return 0
-	case statusNAStr:
-		return 1
-	case statusMissingStr:
-		return 2
-	}
-	return 3
-}
-
-const (
-	statusFoundStr   = "Found"
-	statusMissingStr = "Missing"
-	statusNAStr      = "N/A"
-)
-
-func (m *model) updateTableDimensions() {
-	availW := m.width - 6
-	if availW < 60 {
-		availW = 60
-	}
-
-	idW := 5
-	verW := 14
-	typeW := 10
-	dateW := 12
-	statW := 10
-	elW := 12
-	crW := 12
-
-	totalMin := idW + verW + typeW + dateW + statW + elW + crW + 2
-	if availW < totalMin {
-		statW = 8
-		elW = 10
-		crW = 10
-	}
-
-	m.tbl.SetColumns([]table.Column{
-		{Title: "ID", Width: idW},
-		{Title: "Version", Width: verW},
-		{Title: "Type", Width: typeW},
-		{Title: "Date", Width: dateW},
-		{Title: "Docker", Width: statW},
-		{Title: "Electron", Width: elW},
-		{Title: "Chromium", Width: crW},
-	})
 }
 
 func (m *model) buildRows() {
@@ -373,6 +400,11 @@ func (m *model) buildRows() {
 			}
 		}
 
+		cssStatus := ""
+		if _, err := os.Stat(m.cssDirFor(v)); err == nil {
+			cssStatus = "\u2713"
+		}
+
 		date := rss.Date
 		if len(date) > 10 {
 			date = date[:10]
@@ -386,11 +418,99 @@ func (m *model) buildRows() {
 			stat,
 			fmtElectron(elV),
 			crV,
+			cssStatus,
 		})
 	}
 
 	m.rows = rows
 	m.filtered = rows
+}
+
+func (m *model) updateTableDimensions() {
+	availW := m.width - 6
+	if availW < 60 {
+		availW = 60
+	}
+
+	m.tbl.SetColumns([]table.Column{
+		{Title: "ID", Width: 5},
+		{Title: "Version", Width: 14},
+		{Title: "Type", Width: 8},
+		{Title: "Date", Width: 12},
+		{Title: "Docker", Width: 8},
+		{Title: "Electron", Width: 10},
+		{Title: "Chromium", Width: 10},
+		{Title: "CSS", Width: 6},
+	})
+}
+
+func (m *model) Run() (Selection, error) {
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	finalModel, err := p.Run()
+	if err != nil {
+		return Selection{}, err
+	}
+	m2, ok := finalModel.(*model)
+	if !ok {
+		return Selection{}, nil
+	}
+	if m2.state == stateConfirm {
+		return Selection{Version: m2.selectedVersion}, nil
+	}
+	return Selection{}, nil
+}
+
+func parseVersion(v string) []int {
+	parts := strings.Split(v, ".")
+	ints := make([]int, 3)
+	for i, p := range parts {
+		if i < 3 {
+			ints[i] = atoi(p)
+		}
+	}
+	return ints
+}
+
+func atoi(s string) int {
+	var n int
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			n = n*10 + int(c-'0')
+		}
+	}
+	return n
+}
+
+func compareVersions(a, b []int) int {
+	for i := 0; i < 3; i++ {
+		va := 0
+		vb := 0
+		if i < len(a) {
+			va = a[i]
+		}
+		if i < len(b) {
+			vb = b[i]
+		}
+		if va != vb {
+			return va - vb
+		}
+	}
+	return 0
+}
+
+func sortPriority(row table.Row) int {
+	if len(row) > 7 && row[7] == "\u2713" {
+		return 0
+	}
+	switch row[4] {
+	case statusFoundStr:
+		return 1
+	case statusNAStr:
+		return 2
+	case statusMissingStr:
+		return 3
+	}
+	return 4
 }
 
 func fmtElectron(v string) string {
@@ -399,3 +519,9 @@ func fmtElectron(v string) string {
 	}
 	return "v" + v
 }
+
+const (
+	statusFoundStr   = "Found"
+	statusMissingStr = "Missing"
+	statusNAStr      = "N/A"
+)

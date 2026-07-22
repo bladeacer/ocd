@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bladeacer/obsi-css-diff/cmd"
+	"github.com/bladeacer/ocd/cmd"
 )
 
 var (
@@ -17,9 +17,9 @@ var (
 
 func main() {
 	root := &cobra.Command{
-		Use:   "obsi-css-diff",
+		Use:   "ocd",
 		Short: "Track Obsidian versions, extract app.css, and diff CSS changes",
-		Long: `obsi-css-diff is a TUI tool for tracking Obsidian versions,
+		Long: `ocd is a TUI tool for tracking Obsidian versions,
 extracting app.css from Obsidian releases on GitHub,
 and computing CSS diffs between versions.`,
 		Version: fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date),

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/models"
 )
 
 const electronRawURL = "https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/full-versions.json"

@@ -8,8 +8,6 @@ import (
 	"os"
 )
 
-const asarJSONOffset = 16
-
 type asarHeader struct {
 	Files map[string]asarEntry `json:"files"`
 }
@@ -27,18 +25,17 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 	}
 	defer f.Close()
 
-	raw := make([]byte, 12)
-	if _, err := io.ReadFull(f, raw); err != nil {
-		return fmt.Errorf("read asar header prefix: %w", err)
+	magic := make([]byte, 4)
+	if _, err := io.ReadFull(f, magic); err != nil {
+		return fmt.Errorf("read asar magic: %w", err)
 	}
 
-	headerBuf := make([]byte, 4)
-	if _, err := io.ReadFull(f, headerBuf); err != nil {
-		return fmt.Errorf("read asar json header size: %w", err)
+	var headerSize uint32
+	if err := binary.Read(f, binary.LittleEndian, &headerSize); err != nil {
+		return fmt.Errorf("read asar header size: %w", err)
 	}
-	jsonSize := binary.LittleEndian.Uint32(headerBuf)
 
-	jsonBuf := make([]byte, jsonSize)
+	jsonBuf := make([]byte, headerSize)
 	if _, err := io.ReadFull(f, jsonBuf); err != nil {
 		return fmt.Errorf("read asar json header: %w", err)
 	}
@@ -58,7 +55,7 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 		return fmt.Errorf("parse asar offset: %w", err)
 	}
 
-	dataOffset := int64(asarJSONOffset + int(jsonSize))
+	dataOffset := int64(8 + headerSize)
 
 	out, err := os.Create(destPath)
 	if err != nil {

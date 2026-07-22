@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bladeacer/obsi-css-diff/internal/cache"
+	"github.com/bladeacer/ocd/internal/cache"
 )
 
 func NewCleanCmd() *cobra.Command {

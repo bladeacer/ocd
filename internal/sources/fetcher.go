@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/bladeacer/obsi-css-diff/internal/cache"
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/cache"
+	"github.com/bladeacer/ocd/internal/models"
 )
 
 const fetchTimeout = 15 * time.Second

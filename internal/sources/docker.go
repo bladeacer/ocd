@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/models"
 )
 
-const dockerHubAPI = "https://hub.docker.com/v2/repositories/linuxserver/obsidian/tags"
+var dockerHubAPI = "https://hub.docker.com/v2/repositories/linuxserver/obsidian/tags"
 
 type DockerHub struct {
 	client *http.Client

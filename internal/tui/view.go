@@ -3,22 +3,17 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 func (m *model) View() string {
-	if m.err != nil {
-		return errorStyle.Render(fmt.Sprintf("Error: %v", m.err))
-	}
-
 	switch m.state {
 	case stateLoading:
 		return m.loadingView()
-	case stateTable:
-		return m.tableView()
+	case stateTable, stateSearch:
+		return m.tableContentView()
 	case stateConfirm:
 		return m.confirmView()
 	}
@@ -26,100 +21,60 @@ func (m *model) View() string {
 }
 
 func (m *model) loadingView() string {
-	s := fmt.Sprintf("\n%s Loading Obsidian version data...\n", m.spinner.View())
-	return appStyle.Render(s)
+	if m.err != nil {
+		return errorStyle.Render(fmt.Sprintf("Error loading data:\n\n%s", m.err))
+	}
+
+	elapsed := time.Since(m.startTime).Round(time.Second)
+	msg := m.loadMessages[m.loadIndex]
+
+	return fmt.Sprintf("\n  %s %s\n\n  elapsed: %s\n", m.spinner.View(), msg, elapsed)
 }
 
-func (m *model) tableView() string {
-	if !m.ready {
-		return m.loadingView()
-	}
-
+func (m *model) tableContentView() string {
 	var b strings.Builder
 
-	b.WriteString(headerStyle.Render("obsi-css-diff"))
-	b.WriteString("\n")
+	b.WriteString(titleStyle("ocd \u2014 Obsidian CSS Diff"))
 
-	b.WriteString(filterStyle.Render(
-		fmt.Sprintf("[m] Mobile:%v [e] Early:%v [f] Docker:%v [s] Priority:%v  /search  enter:select q:quit",
-			formatBool(m.showMobile),
-			formatBool(m.showEarlyAccess),
-			formatBool(m.foundOnly),
-			formatBool(m.sortByPriority),
-		),
-	))
-	b.WriteString("\n")
-
-	t := m.tbl
-
-	rendered := lipgloss.NewStyle().MaxWidth(m.width - 4).Render(t.View())
-	b.WriteString(rendered)
-	b.WriteString("\n")
-
-	b.WriteString(helpStyle.Render("m: toggle mobile | e: toggle early access | f: toggle docker-found | s: toggle sort | q: quit"))
-
-	if m.selectedVersion != "" {
-		b.WriteString(fmt.Sprintf("\n\n%s Selected: v%s", successStyle.Render(">"), m.selectedVersion))
+	if m.state == stateSearch {
+		b.WriteString("\n" + searchBoxStyle.Render(m.searchIn.View()))
 	}
 
-	return appStyle.Render(b.String())
+	b.WriteString("\n\n")
+	b.WriteString(m.tbl.View())
+
+	b.WriteString(m.footerView())
+
+	return b.String()
+}
+
+func (m *model) footerView() string {
+	parts := []string{
+		fmtStatus("M", m.showMobile),
+		fmtStatus("E", m.showEarlyAccess),
+		fmtStatus("F", m.foundOnly),
+		fmtStatus("S", m.sortByPriority),
+	}
+
+	keys := helpStyle.Render("\u2191\u2193\u2190\u2192 nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit")
+
+	info := fmt.Sprintf("[%s]", strings.Join(parts, " "))
+	return "\n\n" + info + "  " + keys
+}
+
+func fmtStatus(label string, active bool) string {
+	if active {
+		return activeStyle.Render(strings.ToUpper(label))
+	}
+	return inactiveStyle.Render(strings.ToUpper(label))
 }
 
 func (m *model) confirmView() string {
-	content := fmt.Sprintf(
-		"%s\n\nVersion: %s\n\n%s   %s",
-		labelStyle.Render("Extract app.css for this version?"),
-		versionStyle.Render(m.selectedVersion),
-		successStyle.Render("[Y] Yes"),
-		errorStyle.Render("[N] No"),
+	v := m.selectedVersion
+	msg := fmt.Sprintf(
+		"Extract CSS for version %s?\n\n  This downloads and extracts app.css from the Obsidian %s release.\n\n  [y] Yes   [n] No",
+		highlightStyle.Render(v),
+		v,
 	)
-	return appStyle.Render(confirmBoxStyle.Render(content))
-}
-
-func tableStyles() table.Styles {
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		Bold(true).
-		Foreground(lipgloss.Color("205"))
-
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("60"))
-
-	return s
-}
-
-func formatBool(v bool) string {
-	if v {
-		return greenDot
-	}
-	return dimDot
-}
-
-const (
-	greenDot = "\033[32m●\033[0m"
-	dimDot   = "\033[2m○\033[0m"
-)
-
-func (m *model) Run() (Selection, error) {
-	p := tea.NewProgram(m, tea.WithAltScreen())
-	finalModel, err := p.Run()
-	if err != nil {
-		return Selection{}, err
-	}
-
-	m2, ok := finalModel.(*model)
-	if !ok {
-		return Selection{}, nil
-	}
-
-	if m2.state == stateConfirm {
-		return Selection{
-			Version: m2.selectedVersion,
-		}, nil
-	}
-
-	return Selection{}, nil
+	return lipgloss.NewStyle().Padding(1, 2).Render(msg)
 }

@@ -1,6 +1,6 @@
 version: 2
 
-project_name: obsi-css-diff
+project_name: ocd
 
 before:
   hooks:

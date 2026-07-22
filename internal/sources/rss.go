@@ -7,7 +7,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/models"
 )
 
 const changelogURL = "https://obsidian.md/changelog.xml"

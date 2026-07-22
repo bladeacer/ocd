@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bladeacer/obsi-css-diff/internal/core"
+	"github.com/bladeacer/ocd/internal/core"
 )
 
 func NewExtractCmd() *cobra.Command {
@@ -13,7 +13,7 @@ func NewExtractCmd() *cobra.Command {
 		Use:   "extract <version>",
 		Short: "Download and extract app.css from an Obsidian release",
 		Long: `Download the Obsidian ASAR bundle for a given version from GitHub releases
-and extract app.css. Example: obsi-css-diff extract 1.12.7`,
+and extract app.css. Example: ocd extract 1.12.7`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]

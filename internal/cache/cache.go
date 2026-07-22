@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const CacheDir = ".obsidian_cache"
+var CacheDir = ".obsidian_cache"
 
 var (
 	ErrCacheMiss  = errors.New("cache miss")

@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/bladeacer/obsi-css-diff/internal/cache"
-	"github.com/bladeacer/obsi-css-diff/internal/core"
-	"github.com/bladeacer/obsi-css-diff/internal/sources"
-	"github.com/bladeacer/obsi-css-diff/internal/tui"
+	"github.com/bladeacer/ocd/internal/cache"
+	"github.com/bladeacer/ocd/internal/core"
+	"github.com/bladeacer/ocd/internal/sources"
+	"github.com/bladeacer/ocd/internal/tui"
 )
 
 func NewInteractCmd() *cobra.Command {
@@ -24,12 +24,7 @@ for CSS extraction and diffing.`,
 			c := cache.New(0)
 			f := sources.NewFetcher(c)
 
-			result := f.FetchAll(forceRefresh)
-			if result.Error != nil {
-				return fmt.Errorf("fetch data: %w", result.Error)
-			}
-
-			app := tui.New(result)
+			app := tui.New(f, forceRefresh)
 			selected, err := app.Run()
 			if err != nil {
 				return fmt.Errorf("tui error: %w", err)

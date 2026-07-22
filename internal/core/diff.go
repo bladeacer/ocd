@@ -9,10 +9,10 @@ import (
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
 
-	"github.com/bladeacer/obsi-css-diff/internal/models"
+	"github.com/bladeacer/ocd/internal/models"
 )
 
-const diffCSSDir = ".obsidian_cache/css"
+var diffCSSDir = ".obsidian_cache/css"
 
 func DiffCSS(versionA, versionB string) *models.DiffResult {
 	pathA := diffCSSDir + "/" + versionA + "/app.css"
