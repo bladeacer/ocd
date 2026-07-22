@@ -1,28 +1,26 @@
-.PHONY: setup install lint fix format clean run help
+.PHONY: build run lint fmt clean help
 
-PYTHON = uv run python
-MODULE = obsi_diff
+BINARY=obsi-css-diff
+GO=go
 
-# 1. Capture everything after 'run'
-# $(wordlist 2, ...) grabs all words starting from the second position
-RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+help:
+	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-help: ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+build: ## Build the binary
+	$(GO) build -o $(BINARY) .
 
-setup: ## Initial project setup
-	uv sync --group dev
-	uv run pre-commit install
+run: ## Run the app (pass args after --)
+	$(GO) run . -- $(filter-out $@,$(MAKECMDGOALS))
 
-lint: ## Run ruff linter
-	uv run ruff check .
+lint: ## Run golangci-lint
+	golangci-lint run ./...
 
-fix: ## Run ruff and automatically fix issues
-	uv run ruff check . --fix --unsafe-fixes
-	uv run ruff format .
+fmt: ## Run gofmt on all source files
+	gofmt -w .
 
-run: ## Run the app (Usage: make run interact --refresh)
-	@$(PYTHON) -m $(MODULE) $(RUN_ARGS) || if [ $$? -eq 2 ]; then exit 0; else exit $$?; fi
+tidy: ## Tidy Go module dependencies
+	$(GO) mod tidy
 
-%:
-	@:
+clean: ## Remove build artifacts and cache
+	rm -f $(BINARY)
+	rm -rf .obsidian_cache
