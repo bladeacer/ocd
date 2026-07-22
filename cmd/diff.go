@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +13,16 @@ import (
 	"github.com/bladeacer/ocd/internal/tui"
 )
 
+func ensureCSS(version string) error {
+	p := filepath.Join(".obsidian_cache", "css", version, "app.css")
+	if _, err := os.Stat(p); err == nil {
+		return nil
+	}
+	fmt.Printf("Extracting app.css for v%s...\n", version)
+	_, err := core.ExtractCSS(version)
+	return err
+}
+
 func NewDiffCmd() *cobra.Command {
 	var forceRefresh bool
 	var interactive bool
@@ -19,7 +31,7 @@ func NewDiffCmd() *cobra.Command {
 		Use:   "diff [version-a] [version-b]",
 		Short: "Show CSS diff between two Obsidian versions",
 		Long: `Display a unified diff of app.css between two Obsidian versions.
-Both versions must have been extracted first via 'extract'.
+Versions are auto-extracted if not already cached.
 
 If no arguments are provided, or --pick is used, an interactive
 version picker is launched.`,
@@ -45,6 +57,13 @@ version picker is launched.`,
 				}
 			} else {
 				return fmt.Errorf("usage: diff <version-a> <version-b> or diff --pick")
+			}
+
+			if err := ensureCSS(versionA); err != nil {
+				return fmt.Errorf("extract %s: %w", versionA, err)
+			}
+			if err := ensureCSS(versionB); err != nil {
+				return fmt.Errorf("extract %s: %w", versionB, err)
 			}
 
 			result := core.DiffCSS(versionA, versionB)

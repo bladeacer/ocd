@@ -100,8 +100,8 @@ func New(f *sources.Fetcher, force bool) *model {
 		tbl:             t,
 		searchIn:        ti,
 		startTime:       time.Now(),
-		showMobile:      true,
-		showEarlyAccess: true,
+		showMobile:      false,
+		showEarlyAccess: false,
 		sortByPriority:  true,
 		loadMessages: []string{
 			"Fetching RSS changelog...",
@@ -402,7 +402,7 @@ func (m *model) buildRows() {
 
 		cssStatus := ""
 		if _, err := os.Stat(m.cssDirFor(v)); err == nil {
-			cssStatus = "\u2713"
+			cssStatus = "[x]"
 		}
 
 		date := rss.Date
@@ -494,7 +494,7 @@ func compareVersions(a, b []int) int {
 }
 
 func sortPriority(row table.Row) int {
-	if len(row) > 7 && row[7] == "\u2713" {
+	if len(row) > 7 && row[7] == "[x]" {
 		return 0
 	}
 	switch row[4] {

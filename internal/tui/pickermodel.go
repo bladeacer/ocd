@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,7 @@ type pickerModel struct {
 	result  *models.FetchResult
 	tbl     table.Model
 	search  textinput.Model
+	spinner *spinnerModel
 
 	firstVer   string
 	secondVer  string
@@ -67,12 +69,13 @@ func NewPicker(f *sources.Fetcher, force bool) *pickerModel {
 		step:       stepPickFirst,
 		tbl:        t,
 		search:     ti,
+		spinner:    newSpinnerModel([]string{"Loading version data..."}),
 		showMobile: true,
 	}
 }
 
 func (m *pickerModel) Init() tea.Cmd {
-	return m.loadData
+	return tea.Batch(m.spinner.Init(), m.loadData)
 }
 
 func (m *pickerModel) loadData() tea.Msg {
@@ -91,6 +94,11 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.buildRows()
 		m.applyFilter()
 		return m, nil
+
+	case tickMsg, spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case tea.KeyMsg:
 		if m.err != nil || m.result == nil {
@@ -280,7 +288,7 @@ func (m *pickerModel) View() string {
 		return fmt.Sprintf("Error loading data:\n\n%v\n\nPress q to quit.", m.err)
 	}
 	if m.result == nil {
-		return "\n  Loading version data..."
+		return m.spinner.View()
 	}
 
 	prompt := "Select the first version:"

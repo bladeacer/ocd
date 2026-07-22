@@ -9,7 +9,7 @@ import (
 	"github.com/bladeacer/ocd/internal/models"
 )
 
-const electronRawURL = "https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/full-versions.json"
+var electronRawURL = "https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/full-versions.json"
 
 type Electron struct {
 	client *http.Client

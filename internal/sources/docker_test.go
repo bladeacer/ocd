@@ -65,6 +65,13 @@ func TestDockerHubEmpty(t *testing.T) {
 	}
 }
 
+func TestDockerHubName(t *testing.T) {
+	d := NewDockerHub()
+	if d.Name() != "docker" {
+		t.Errorf("expected docker, got %s", d.Name())
+	}
+}
+
 func TestDockerHubHTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

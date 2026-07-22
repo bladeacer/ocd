@@ -12,7 +12,7 @@ import (
 
 var extractCSSDir = ".obsidian_cache/css"
 
-const asarReleaseURL = "https://github.com/obsidianmd/obsidian-releases/releases/download/v%s/obsidian-%s.asar.gz"
+var asarReleaseURL = "https://github.com/obsidianmd/obsidian-releases/releases/download/v%s/obsidian-%s.asar.gz"
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 

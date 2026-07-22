@@ -1,4 +1,9 @@
-# ocd — Obsidian CSS Diff
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/bladeacer/ocd?style=for-the-badge&logo=go)
+![GitHub License](https://img.shields.io/github/license/bladeacer/ocd?style=for-the-badge)
+
+![Coverage](coverage.svg)
+
+# ocd - Obsidian CSS Diff
 
 Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR bundle directly from GitHub releases — no Docker or Node.js needed.
 

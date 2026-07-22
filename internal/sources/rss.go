@@ -10,7 +10,7 @@ import (
 	"github.com/bladeacer/ocd/internal/models"
 )
 
-const changelogURL = "https://obsidian.md/changelog.xml"
+var changelogURL = "https://obsidian.md/changelog.xml"
 
 type RSS struct{}
 

@@ -34,7 +34,7 @@ func (m *model) loadingView() string {
 func (m *model) tableContentView() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle("ocd \u2014 Obsidian CSS Diff"))
+	b.WriteString(titleStyle("ocd -- Obsidian CSS Diff"))
 
 	if m.state == stateSearch {
 		b.WriteString("\n" + searchBoxStyle.Render(m.searchIn.View()))
@@ -56,10 +56,10 @@ func (m *model) footerView() string {
 		fmtStatus("S", m.sortByPriority),
 	}
 
-	keys := helpStyle.Render("\u2191\u2193\u2190\u2192 nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit")
+	keys := helpStyle.Render("up/down/left/right nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit")
 
 	info := fmt.Sprintf("[%s]", strings.Join(parts, " "))
-	return "\n\n" + info + "  " + keys
+	return "\n\n" + info + "\n" + keys
 }
 
 func fmtStatus(label string, active bool) string {
