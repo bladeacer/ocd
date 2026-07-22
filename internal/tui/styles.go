@@ -39,9 +39,6 @@ var highlightStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#f59e0b")).
 	Bold(true)
 
-var successStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#22c55e"))
-
 func tableStyles() table.Styles {
 	s := table.DefaultStyles()
 	s.Header = s.Header.

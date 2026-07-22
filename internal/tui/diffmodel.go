@@ -187,16 +187,24 @@ func (m *diffModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+const (
+	keyEscape    = "escape"
+	keyEnter     = "enter"
+	keyCtrlC     = "ctrl+c"
+	keyTab       = "tab"
+	keyBackspace = "backspace"
+)
+
 func (m *diffModel) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "escape", "ctrl+c":
+	case keyEscape, keyCtrlC:
 		m.searchMode = false
 		m.searchQ = ""
 		m.searchIn.Blur()
 		m.refreshViewport()
 		return m, nil
 
-	case "enter", "tab":
+	case keyEnter, keyTab:
 		m.searchMode = false
 		m.searchQ = m.searchIn.Value()
 		m.searchIn.Blur()
@@ -204,7 +212,7 @@ func (m *diffModel) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		return m, nil
 
-	case "backspace":
+	case keyBackspace:
 		val := m.searchIn.Value()
 		if len(val) > 0 {
 			m.searchIn.SetValue(val[:len(val)-1])
@@ -242,7 +250,7 @@ func (m *diffModel) scrollToMatch() {
 
 func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c", "escape":
+	case "q", keyCtrlC, keyEscape:
 		return m, tea.Quit
 
 	case "n":
@@ -328,7 +336,10 @@ func (m *diffModel) openInEditor() tea.Cmd {
 			return nil
 		}
 		tmpPath := f.Name()
-		f.WriteString(m.result.Diff)
+		if _, err := f.WriteString(m.result.Diff); err != nil {
+			f.Close()
+			return nil
+		}
 		f.Close()
 		defer os.Remove(tmpPath)
 
@@ -340,7 +351,7 @@ func (m *diffModel) openInEditor() tea.Cmd {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.Run()
+		_ = cmd.Run()
 		return nil
 	}
 }

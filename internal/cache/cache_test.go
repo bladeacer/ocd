@@ -63,7 +63,9 @@ func TestCacheDelete(t *testing.T) {
 	dir := t.TempDir()
 	s := &Store{dir: dir}
 
-	s.Set("del_test", "value")
+	if err := s.Set("del_test", "value"); err != nil {
+		t.Fatalf("Set error: %v", err)
+	}
 	if err := s.Delete("del_test"); err != nil {
 		t.Fatalf("Delete error: %v", err)
 	}
@@ -87,8 +89,12 @@ func TestCacheClear(t *testing.T) {
 	dir := t.TempDir()
 	s := &Store{dir: dir}
 
-	s.Set("a", 1)
-	s.Set("b", 2)
+	if err := s.Set("a", 1); err != nil {
+		t.Fatalf("Set error: %v", err)
+	}
+	if err := s.Set("b", 2); err != nil {
+		t.Fatalf("Set error: %v", err)
+	}
 
 	if err := s.Clear(); err != nil {
 		t.Fatalf("Clear error: %v", err)
@@ -111,6 +117,54 @@ func TestStoreStruct(t *testing.T) {
 	}
 	if _, err := os.Stat(s.dir); os.IsNotExist(err) {
 		t.Error("cache dir was not created")
+	}
+}
+
+func TestCacheClearEmptyDir(t *testing.T) {
+	dir := t.TempDir()
+	s := &Store{dir: dir}
+
+	if err := s.Clear(); err != nil {
+		t.Fatalf("Clear on empty dir: %v", err)
+	}
+}
+
+func TestCacheGetInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	s := &Store{dir: dir}
+
+	if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte("{invalid"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	var v string
+	err := s.Get("bad", &v)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestCacheGetNonExistentFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nonexistent")
+	s := &Store{dir: dir}
+
+	var v string
+	err := s.Get("test", &v)
+	if err != ErrCacheMiss {
+		t.Fatalf("expected ErrCacheMiss, got %v", err)
+	}
+}
+
+func TestCacheGetCorruptEntry(t *testing.T) {
+	dir := t.TempDir()
+	s := &Store{dir: dir}
+
+	if err := os.WriteFile(filepath.Join(dir, "corrupt.json"), []byte("{"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	var v string
+	err := s.Get("corrupt", &v)
+	if err == nil {
+		t.Fatal("expected error for corrupt entry")
 	}
 }
 

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -92,7 +94,7 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if m.err != nil || m.result == nil {
-			if msg.String() == "q" || msg.String() == "ctrl+c" {
+			if msg.String() == "q" || msg.String() == keyCtrlC {
 				m.done = true
 				return m, tea.Quit
 			}
@@ -111,7 +113,7 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q", keyCtrlC:
 		m.done = true
 		return m, tea.Quit
 	case "/":
@@ -119,7 +121,7 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.search.Focus()
 		m.search.SetValue(m.searchQ)
 		return m, nil
-	case "enter":
+	case keyEnter:
 		return m.selectCurrent()
 	case "m":
 		m.showMobile = !m.showMobile
@@ -133,20 +135,20 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *pickerModel) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "escape", "ctrl+c":
+	case keyEscape, keyCtrlC:
 		m.searchMode = false
 		m.searchQ = ""
 		m.search.Blur()
 		m.search.SetValue("")
 		m.applyFilter()
 		return m, nil
-	case "enter", "tab":
+	case keyEnter, keyTab:
 		m.searchMode = false
 		m.searchQ = m.search.Value()
 		m.search.Blur()
 		m.applyFilter()
 		return m, nil
-	case "backspace":
+	case keyBackspace:
 		val := m.search.Value()
 		if len(val) > 0 {
 			m.search.SetValue(val[:len(val)-1])
@@ -221,7 +223,7 @@ func (m *pickerModel) buildRows() {
 
 		elV := v.Electron
 		if elV == "" {
-			elV = "---"
+			elV = naStr
 		} else {
 			elV = "v" + elV
 		}
@@ -235,6 +237,11 @@ func (m *pickerModel) buildRows() {
 		})
 	}
 	m.rows = rows
+}
+
+func (m *pickerModel) cssExtracted(version string) bool {
+	_, err := os.Stat(filepath.Join(".obsidian_cache", "css", version, "app.css"))
+	return err == nil
 }
 
 func (m *pickerModel) applyFilter() {
@@ -252,6 +259,19 @@ func (m *pickerModel) applyFilter() {
 		}
 		filtered = append(filtered, row)
 	}
+
+	sort.SliceStable(filtered, func(i, j int) bool {
+		cssI := m.cssExtracted(filtered[i][0])
+		cssJ := m.cssExtracted(filtered[j][0])
+		if cssI != cssJ {
+			return cssI
+		}
+		return compareVersions(
+			parseVersion(filtered[i][0]),
+			parseVersion(filtered[j][0]),
+		) > 0
+	})
+
 	m.tbl.SetRows(filtered)
 }
 

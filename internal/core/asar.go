@@ -18,6 +18,16 @@ type asarEntry struct {
 	Files  map[string]asarEntry `json:"files,omitempty"`
 }
 
+// Obsidian ASAR format (Electron 28+):
+//
+//	[0-3]   unknown (ignored)
+//	[4-11]  unknown (ignored)
+//	[12-15] json header size (uint32 LE)
+//	[16+]   JSON header string
+//	[16+jsonSize]  file data
+const asarJSONOffset = 16
+const asarMaxHeaderSize = 10 * 1024 * 1024
+
 func extractAppCSSFromASAR(asarPath, destPath string) error {
 	f, err := os.Open(asarPath)
 	if err != nil {
@@ -25,17 +35,20 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 	}
 	defer f.Close()
 
-	magic := make([]byte, 4)
-	if _, err := io.ReadFull(f, magic); err != nil {
-		return fmt.Errorf("read asar magic: %w", err)
+	raw := make([]byte, 12)
+	if _, err := io.ReadFull(f, raw); err != nil {
+		return fmt.Errorf("read asar header prefix: %w", err)
 	}
 
-	var headerSize uint32
-	if err := binary.Read(f, binary.LittleEndian, &headerSize); err != nil {
-		return fmt.Errorf("read asar header size: %w", err)
+	var jsonSize uint32
+	if err := binary.Read(f, binary.LittleEndian, &jsonSize); err != nil {
+		return fmt.Errorf("read asar json header size: %w", err)
+	}
+	if jsonSize == 0 || jsonSize > asarMaxHeaderSize {
+		return fmt.Errorf("invalid asar header size: %d", jsonSize)
 	}
 
-	jsonBuf := make([]byte, headerSize)
+	jsonBuf := make([]byte, jsonSize)
 	if _, err := io.ReadFull(f, jsonBuf); err != nil {
 		return fmt.Errorf("read asar json header: %w", err)
 	}
@@ -55,7 +68,7 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 		return fmt.Errorf("parse asar offset: %w", err)
 	}
 
-	dataOffset := int64(8 + headerSize)
+	dataOffset := int64(asarJSONOffset + int(jsonSize))
 
 	out, err := os.Create(destPath)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const extractCSSDir = ".obsidian_cache/css"
+var extractCSSDir = ".obsidian_cache/css"
 
 const asarReleaseURL = "https://github.com/obsidianmd/obsidian-releases/releases/download/v%s/obsidian-%s.asar.gz"
 

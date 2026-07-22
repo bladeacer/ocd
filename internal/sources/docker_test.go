@@ -17,7 +17,7 @@ func TestDockerHubParse(t *testing.T) {
 				{Name: "1.4.0", LastUpdated: "2024-01-04"},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -46,7 +46,7 @@ func TestDockerHubParse(t *testing.T) {
 func TestDockerHubEmpty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := dockerTagResponse{}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 

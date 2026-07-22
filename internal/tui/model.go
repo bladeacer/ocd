@@ -184,7 +184,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleLoadingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "q" || msg.String() == "ctrl+c" {
+	if msg.String() == "q" || msg.String() == keyCtrlC {
 		return m, tea.Quit
 	}
 	return m, nil
@@ -192,10 +192,10 @@ func (m *model) handleLoadingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q", keyCtrlC:
 		return m, tea.Quit
 
-	case "enter":
+	case keyEnter:
 		return m.selectRow()
 
 	case "/":
@@ -228,7 +228,7 @@ func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "escape", "ctrl+c":
+	case keyEscape, keyCtrlC:
 		m.state = stateTable
 		m.searchQuery = ""
 		m.searchIn.SetValue("")
@@ -236,7 +236,7 @@ func (m *model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applyFilters()
 		return m, nil
 
-	case "enter", "tab":
+	case keyEnter, keyTab:
 		m.state = stateTable
 		m.searchQuery = m.searchIn.Value()
 		m.searchIn.Blur()
@@ -265,9 +265,9 @@ func (m *model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "enter":
+	case "y", keyEnter:
 		return m, tea.Quit
-	case "n", "escape", "q":
+	case "n", keyEscape, "q":
 		m.selectedVersion = ""
 		m.state = stateTable
 		return m, nil
@@ -383,7 +383,7 @@ func (m *model) buildRows() {
 		seen[key] = true
 
 		elV := rss.Electron
-		crV := "---"
+		crV := naStr
 		if elV != "" {
 			if ch, ok := electronMap[elV]; ok {
 				crV = ch
@@ -427,11 +427,6 @@ func (m *model) buildRows() {
 }
 
 func (m *model) updateTableDimensions() {
-	availW := m.width - 6
-	if availW < 60 {
-		availW = 60
-	}
-
 	m.tbl.SetColumns([]table.Column{
 		{Title: "ID", Width: 5},
 		{Title: "Version", Width: 14},
@@ -515,7 +510,7 @@ func sortPriority(row table.Row) int {
 
 func fmtElectron(v string) string {
 	if v == "" {
-		return "---"
+		return naStr
 	}
 	return "v" + v
 }
@@ -524,4 +519,5 @@ const (
 	statusFoundStr   = "Found"
 	statusMissingStr = "Missing"
 	statusNAStr      = "N/A"
+	naStr            = "---"
 )

@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -10,11 +11,18 @@ func TestDiffCSS(t *testing.T) {
 	dir := t.TempDir()
 	oldDir := filepath.Join(dir, "1.0.0")
 	newDir := filepath.Join(dir, "1.0.1")
-	os.MkdirAll(oldDir, 0755)
-	os.MkdirAll(newDir, 0755)
-
-	os.WriteFile(filepath.Join(oldDir, "app.css"), []byte("body {\n  color: red;\n}\n"), 0644)
-	os.WriteFile(filepath.Join(newDir, "app.css"), []byte("body {\n  color: blue;\n}\n"), 0644)
+	if err := os.MkdirAll(oldDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.MkdirAll(newDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(oldDir, "app.css"), []byte("body {\n  color: red;\n}\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(newDir, "app.css"), []byte("body {\n  color: blue;\n}\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	origDir := diffCSSDir
 	diffCSSDir = dir
@@ -27,7 +35,6 @@ func TestDiffCSS(t *testing.T) {
 	if !result.HasDiff {
 		t.Error("expected HasDiff=true")
 	}
-
 	if result.Diff == "" {
 		t.Error("expected non-empty diff")
 	}
@@ -36,8 +43,12 @@ func TestDiffCSS(t *testing.T) {
 func TestDiffCSSNoDiff(t *testing.T) {
 	dir := t.TempDir()
 	verDir := filepath.Join(dir, "1.0.0")
-	os.MkdirAll(verDir, 0755)
-	os.WriteFile(filepath.Join(verDir, "app.css"), []byte("body { color: red; }\n"), 0644)
+	if err := os.MkdirAll(verDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(verDir, "app.css"), []byte("body { color: red; }\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	origDir := diffCSSDir
 	diffCSSDir = dir
@@ -54,7 +65,6 @@ func TestDiffCSSNoDiff(t *testing.T) {
 
 func TestDiffCSSMissingFile(t *testing.T) {
 	dir := t.TempDir()
-
 	origDir := diffCSSDir
 	diffCSSDir = dir
 	defer func() { diffCSSDir = origDir }()
@@ -69,10 +79,18 @@ func TestDiffCSSVersionFields(t *testing.T) {
 	dir := t.TempDir()
 	aDir := filepath.Join(dir, "v1")
 	bDir := filepath.Join(dir, "v2")
-	os.MkdirAll(aDir, 0755)
-	os.MkdirAll(bDir, 0755)
-	os.WriteFile(filepath.Join(aDir, "app.css"), []byte("a"), 0644)
-	os.WriteFile(filepath.Join(bDir, "app.css"), []byte("b"), 0644)
+	if err := os.MkdirAll(aDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.MkdirAll(bDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(aDir, "app.css"), []byte("a"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bDir, "app.css"), []byte("b"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	origDir := diffCSSDir
 	diffCSSDir = dir
@@ -87,5 +105,64 @@ func TestDiffCSSVersionFields(t *testing.T) {
 	}
 	if result.VersionB != "v2" {
 		t.Errorf("expected VersionB=v2, got %s", result.VersionB)
+	}
+}
+
+func TestDiffCSSWithDiffContent(t *testing.T) {
+	dir := t.TempDir()
+	aDir := filepath.Join(dir, "a")
+	bDir := filepath.Join(dir, "b")
+	if err := os.MkdirAll(aDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.MkdirAll(bDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(aDir, "app.css"), []byte(".a { color: x; }\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bDir, "app.css"), []byte(".a { color: y; }\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	origDir := diffCSSDir
+	diffCSSDir = dir
+	defer func() { diffCSSDir = origDir }()
+
+	result := DiffCSS("a", "b")
+	if result.Error != nil {
+		t.Fatalf("DiffCSS error: %v", result.Error)
+	}
+	if !result.HasDiff {
+		t.Error("expected HasDiff=true")
+	}
+	if !strings.Contains(result.Diff, "color: x") {
+		t.Error("expected old value in diff")
+	}
+	if !strings.Contains(result.Diff, "color: y") {
+		t.Error("expected new value in diff")
+	}
+}
+
+func TestDiffCSSIdentical(t *testing.T) {
+	dir := t.TempDir()
+	verDir := filepath.Join(dir, "v")
+	if err := os.MkdirAll(verDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(verDir, "app.css"), []byte("same"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	origDir := diffCSSDir
+	diffCSSDir = dir
+	defer func() { diffCSSDir = origDir }()
+
+	result := DiffCSS("v", "v")
+	if result.Error != nil {
+		t.Fatalf("DiffCSS error: %v", result.Error)
+	}
+	if result.HasDiff {
+		t.Error("expected HasDiff=false for identical files")
 	}
 }
