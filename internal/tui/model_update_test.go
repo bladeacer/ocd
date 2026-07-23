@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -135,7 +136,8 @@ func TestModelUpdateTableDimensions(t *testing.T) {
 
 func TestModelHandleTableKeySlash(t *testing.T) {
 	m := &model{
-		state: stateTable,
+		state:    stateTable,
+		searchIn: textinput.New(),
 	}
 	_, cmd := m.handleTableKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	if m.state != stateSearch {
@@ -270,30 +272,28 @@ func TestModelHandleKeyDispatches(t *testing.T) {
 	_, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 }
 
-func TestModelRunConfirmed(t *testing.T) {
+func TestModelSelectionConfirmed(t *testing.T) {
 	m := &model{
 		state:           stateConfirm,
 		selectedVersion: "1.0.0",
 	}
-	sel, err := m.Run()
-	if err != nil {
-		t.Fatalf("Run error: %v", err)
+	if m.state != stateConfirm {
+		t.Error("expected stateConfirm")
 	}
-	if sel.Version != "1.0.0" {
-		t.Errorf("expected version 1.0.0, got %s", sel.Version)
+	if m.selectedVersion != "1.0.0" {
+		t.Errorf("expected version 1.0.0, got %s", m.selectedVersion)
 	}
 }
 
-func TestModelRunCancelled(t *testing.T) {
+func TestModelSelectionCancelled(t *testing.T) {
 	m := &model{
 		state: stateTable,
 	}
-	sel, err := m.Run()
-	if err != nil {
-		t.Fatalf("Run error: %v", err)
+	if m.state == stateConfirm {
+		t.Error("expected non-confirm state")
 	}
-	if sel.Version != "" {
-		t.Errorf("expected empty version, got %s", sel.Version)
+	if m.selectedVersion != "" {
+		t.Errorf("expected empty version, got %s", m.selectedVersion)
 	}
 }
 
@@ -319,7 +319,8 @@ func TestModelApplyFiltersSearch(t *testing.T) {
 			{"0", "1.0.0", "Desktop", "2024-01-01", "Found", "v28", "120", ""},
 			{"1", "1.5.0", "Desktop", "2024-02-01", "Found", "v28", "120", ""},
 		},
-		searchQuery: "1.5.0",
+		showEarlyAccess: true,
+		searchQuery:     "1.5.0",
 	}
 	m.applyFilters()
 	if len(m.filtered) != 1 {

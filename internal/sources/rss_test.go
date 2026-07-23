@@ -33,7 +33,7 @@ const testRSS = `<?xml version="1.0" encoding="UTF-8"?>
 func TestRSSFetch(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(testRSS))
+		_, _ = w.Write([]byte(testRSS))
 	}))
 	defer ts.Close()
 
@@ -99,7 +99,7 @@ func TestRSSFetchHTTPError(t *testing.T) {
 func TestRSSFetchNoVersions(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>No versions</title></channel></rss>`))
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>No versions</title></channel></rss>`))
 	}))
 	defer ts.Close()
 

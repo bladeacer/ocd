@@ -249,15 +249,6 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			newNum = strconv.Itoa(g.newLineNum)
 		}
 
-		oldW := half - len(oldNum) - 1
-		if oldW < 1 {
-			oldW = 1
-		}
-		newW := half - len(newNum) - 1
-		if newW < 1 {
-			newW = 1
-		}
-
 		var oldStyled, newStyled string
 
 		switch g.kind {

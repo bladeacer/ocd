@@ -9,8 +9,8 @@ import (
 
 func TestModelTableContentView(t *testing.T) {
 	m := &model{
-		state:        stateTable,
-		showMobile:   true,
+		state:           stateTable,
+		showMobile:      true,
 		showEarlyAccess: true,
 	}
 	v := m.tableContentView()
@@ -123,9 +123,9 @@ func TestModelFilterToggleDefaults(t *testing.T) {
 
 func TestModelSearchState(t *testing.T) {
 	m := &model{
-		state:     stateSearch,
+		state:      stateSearch,
 		showMobile: true,
-		searchIn:  newTestSearch(),
+		searchIn:   newTestSearch(),
 	}
 	v := m.View()
 	if v == "" {

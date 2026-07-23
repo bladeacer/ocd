@@ -9,11 +9,10 @@ import (
 )
 
 type spinnerModel struct {
-	spinner     spinner.Model
-	startTime   time.Time
-	messages    []string
-	loadIndex   int
-	label       string
+	spinner   spinner.Model
+	startTime time.Time
+	messages  []string
+	loadIndex int
 }
 
 func newSpinnerModel(messages []string) *spinnerModel {

@@ -13,7 +13,7 @@ func TestElectronFetch(t *testing.T) {
 		"2.0.0": "2",
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(data)
+		_ = json.NewEncoder(w).Encode(data)
 	}))
 	defer ts.Close()
 
@@ -53,7 +53,7 @@ func TestElectronFetchHTTPError(t *testing.T) {
 
 func TestElectronFetchBadJSON(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer ts.Close()
 

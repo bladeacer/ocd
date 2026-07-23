@@ -12,7 +12,7 @@ import (
 
 func TestParseHunkHeader(t *testing.T) {
 	tests := []struct {
-		hdr           string
+		hdr              string
 		wantOld, wantNew int
 	}{
 		{"@@ -1,5 +1,6 @@", 1, 1},
@@ -259,15 +259,12 @@ func TestDiffModelToggleSideBySide(t *testing.T) {
 		t.Error("expected sideBySide=false initially")
 	}
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	if !m.sideBySide {
 		t.Error("expected sideBySide=true after pressing v")
 	}
-	if cmd != nil {
-		t.Log("toggle key returned a command")
-	}
 
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	if m.sideBySide {
 		t.Error("expected sideBySide=false after pressing v again")
 	}
@@ -299,15 +296,12 @@ func TestDiffModelSearchMode(t *testing.T) {
 	m := NewDiffModel(r)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	if !m.searchMode {
 		t.Error("expected searchMode=true after pressing /")
 	}
-	if cmd != nil {
-		t.Log("search returned a command")
-	}
 
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m.Update(tea.KeyMsg{Type: tea.KeyEscape})
 	if m.searchMode {
 		t.Error("expected searchMode=false after escape")
 	}
@@ -356,16 +350,15 @@ func TestDiffModelHunkNavigation(t *testing.T) {
 		t.Errorf("expected initial hunk 0, got %d", m.currentHunk)
 	}
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	if m.currentHunk != 1 {
 		t.Errorf("expected hunk 1 after n, got %d", m.currentHunk)
 	}
 
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
 	if m.currentHunk != 0 {
 		t.Errorf("expected hunk 0 after N, got %d", m.currentHunk)
 	}
-	_ = cmd
 }
 
 func TestDiffModelGotoTop(t *testing.T) {
@@ -378,21 +371,20 @@ func TestDiffModelGotoTop(t *testing.T) {
 	m := NewDiffModel(r)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	if !m.pendingG {
 		t.Error("expected pendingG=true after first g")
 	}
 
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	if m.pendingG {
 		t.Error("expected pendingG=false after second g")
 	}
 
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 	if m.pendingG {
 		t.Error("expected pendingG=false after G")
 	}
-	_ = cmd
 }
 
 func TestDiffModelOpenInEditor(t *testing.T) {
@@ -466,5 +458,270 @@ func TestDiffModelRefreshViewport(t *testing.T) {
 	m.refreshViewport()
 	if m.content == "" {
 		t.Error("expected non-empty content after refreshViewport")
+	}
+}
+
+func TestDiffModelInit(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{})
+	cmd := m.Init()
+	if cmd != nil {
+		t.Error("expected nil command from Init")
+	}
+}
+
+func TestDiffModelHandleSearchKeyEscape(t *testing.T) {
+	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	m.searchIn.SetValue("test")
+	m.searchQ = "test"
+	m.handleSearchKey(tea.KeyMsg{Type: tea.KeyEscape})
+	if m.searchMode {
+		t.Error("expected searchMode false after escape")
+	}
+	if m.searchQ != "" {
+		t.Errorf("expected empty searchQ after escape, got %q", m.searchQ)
+	}
+}
+
+func TestDiffModelHandleSearchKeyEnter(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:     "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
+		HasDiff:  true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	m.searchIn.SetValue("old")
+	m.handleSearchKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.searchMode {
+		t.Error("expected searchMode false after enter")
+	}
+	if m.searchQ != "old" {
+		t.Errorf("expected searchQ='old', got %q", m.searchQ)
+	}
+}
+
+func TestDiffModelHandleSearchKeyTab(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:     "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
+		HasDiff:  true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	m.searchIn.SetValue("new")
+	m.handleSearchKey(tea.KeyMsg{Type: tea.KeyTab})
+	if m.searchMode {
+		t.Error("expected searchMode false after tab")
+	}
+	if m.searchQ != "new" {
+		t.Errorf("expected searchQ='new', got %q", m.searchQ)
+	}
+}
+
+func TestDiffModelHandleSearchKeyBackspace(t *testing.T) {
+	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	m.searchIn.SetValue("abc")
+	m.searchQ = "abc"
+	m.handleSearchKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.searchQ != "ab" {
+		t.Errorf("expected searchQ='ab' after backspace, got %q", m.searchQ)
+	}
+}
+
+func TestDiffModelHandleSearchKeyCharacter(t *testing.T) {
+	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	m.handleSearchKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if m.searchQ != "x" {
+		t.Errorf("expected searchQ='x', got %q", m.searchQ)
+	}
+}
+
+func TestDiffModelHandleSearchKeyNonCharacter(t *testing.T) {
+	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.searchMode = true
+	m.searchIn.Focus()
+	_, cmd := m.handleSearchKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b'}})
+	if cmd != nil {
+		t.Error("expected nil cmd for non-character key sequence")
+	}
+}
+
+func TestDiffModelScrollToMatch(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.parsed = []parsedLine{
+		{text: "first"},
+		{text: "second"},
+		{text: "target"},
+	}
+	m.vp.Width = 100
+	m.vp.Height = 3
+	m.vp.SetContent("line0\nline1\nline2\nline3\nline4\n")
+	m.searchQ = "target"
+	m.scrollToMatch()
+	if m.vp.YOffset != 2 {
+		t.Errorf("expected YOffset=2, got %d", m.vp.YOffset)
+	}
+}
+
+func TestDiffModelScrollToMatchNoMatch(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.parsed = []parsedLine{
+		{text: "first"},
+		{text: "second"},
+	}
+	m.vp.Width = 100
+	m.vp.Height = 50
+	m.searchQ = "nonexistent"
+	m.scrollToMatch()
+	if m.vp.YOffset != 0 {
+		t.Errorf("expected YOffset=0 after GotoTop with no match, got %d", m.vp.YOffset)
+	}
+}
+
+func TestDiffModelRenderUnified(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.parsed = []parsedLine{
+		{text: "--- a/file.go", kind: lineFileHeader},
+		{text: "+++ b/file.go", kind: lineFileHeader},
+		{text: "@@ -1,3 +1,4 @@", kind: lineHunkHeader},
+		{text: " context", kind: lineContext, oldLineNum: 1, newLineNum: 1},
+		{text: "-old", kind: lineDel, oldLineNum: 2, newLineNum: 0},
+		{text: "+new", kind: lineAdd, oldLineNum: 0, newLineNum: 2},
+		{text: "", kind: lineEmpty},
+	}
+	var b strings.Builder
+	m.renderUnified(&b)
+	result := stripANSI(b.String())
+	if !strings.Contains(result, "file.go") {
+		t.Error("expected file header in output")
+	}
+	if !strings.Contains(result, "@@") {
+		t.Error("expected hunk header in output")
+	}
+	if !strings.Contains(result, "context") {
+		t.Error("expected context line in output")
+	}
+	if !strings.Contains(result, "-old") {
+		t.Error("expected deletion line in output")
+	}
+	if !strings.Contains(result, "+new") {
+		t.Error("expected addition line in output")
+	}
+}
+
+func TestDiffModelRenderUnifiedWithSearch(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.parsed = []parsedLine{
+		{text: " hello", kind: lineContext, oldLineNum: 1, newLineNum: 1},
+		{text: "-world", kind: lineDel, oldLineNum: 2, newLineNum: 0},
+		{text: "+world", kind: lineAdd, oldLineNum: 0, newLineNum: 2},
+	}
+	m.searchQ = "hello"
+	var b strings.Builder
+	m.renderUnified(&b)
+	result := stripANSI(b.String())
+	if !strings.Contains(result, "hello") {
+		t.Error("expected hello in output with search highlight")
+	}
+}
+
+func TestDiffModelRenderSideBySideDefaultWithSearch(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.parsed = []parsedLine{
+		{text: "--- a", kind: lineFileHeader},
+		{text: "+++ b", kind: lineFileHeader},
+		{text: "@@ -1,3 +1,4 @@", kind: lineHunkHeader},
+		{text: " context", kind: lineContext, oldLineNum: 1, newLineNum: 1},
+		{text: "-old", kind: lineDel, oldLineNum: 2, newLineNum: 0},
+		{text: "+new", kind: lineAdd, oldLineNum: 0, newLineNum: 2},
+	}
+	m.vp.Width = 100
+	m.searchQ = "context"
+	var b strings.Builder
+	m.renderSideBySide(&b)
+	result := stripANSI(b.String())
+	if !strings.Contains(result, "context") {
+		t.Error("expected context in output")
+	}
+}
+
+func TestDiffModelOpenInEditorWithEmptyDiff(t *testing.T) {
+	r := &models.DiffResult{VersionA: "a", VersionB: "b", Diff: "", HasDiff: false}
+	m := NewDiffModel(r)
+	cmd := m.openInEditor()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+}
+
+func TestDiffModelYankHunkNoHunks(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	cmd := m.yankHunk()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+	msg := cmd()
+	if msg != nil {
+		t.Error("expected nil msg from yankHunk with no hunks")
+	}
+}
+
+func TestDiffModelYankAllNoContent(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b", HasDiff: false})
+	cmd := m.yankAll()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+	msg := cmd()
+	if msg != nil {
+		t.Error("expected nil msg from yankAll with no content")
+	}
+}
+
+func TestDiffModelPrevHunkAtFirst(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
+		HasDiff:  true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.currentHunk = 0
+	m.prevHunk()
+	if m.currentHunk != 1 {
+		t.Errorf("expected currentHunk=1 after prevHunk from 0, got %d", m.currentHunk)
+	}
+}
+
+func TestDiffModelHandleNormalKeyY(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
+		HasDiff:  true,
+	}
+	m := NewDiffModel(r)
+	m.build()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if cmd == nil {
+		t.Error("expected non-nil command from y key")
 	}
 }

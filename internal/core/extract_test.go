@@ -11,6 +11,18 @@ import (
 	"testing"
 )
 
+func TestBuildMinimalASARGzIsValid(t *testing.T) {
+	data := buildMinimalASARGz(t)
+	if len(data) == 0 {
+		t.Fatal("expected non-empty gzip data")
+	}
+	r, err := gzip.NewReader(strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	r.Close()
+}
+
 func TestExtractCSSCached(t *testing.T) {
 	dir := t.TempDir()
 	cssDir := filepath.Join(dir, "1.0.0")
@@ -84,7 +96,7 @@ func TestExtractCSSDirCreation(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer ts.Close()
-	asarReleaseURL = ts.URL
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
 	defer func() { asarReleaseURL = origURL }()
 
 	_, err := ExtractCSS("999.999.999")
@@ -104,7 +116,7 @@ func TestExtractCSSHTTPError(t *testing.T) {
 	defer ts.Close()
 
 	origURL := asarReleaseURL
-	asarReleaseURL = ts.URL
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
 	defer func() { asarReleaseURL = origURL }()
 
 	_, err := ExtractCSS("1.0.0")
@@ -122,12 +134,12 @@ func TestExtractCSSBadGzip(t *testing.T) {
 	defer func() { extractCSSDir = orig }()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("not gzip data"))
+		_, _ = w.Write([]byte("not gzip data"))
 	}))
 	defer ts.Close()
 
 	origURL := asarReleaseURL
-	asarReleaseURL = ts.URL
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
 	defer func() { asarReleaseURL = origURL }()
 
 	_, err := ExtractCSS("1.0.0")
@@ -148,16 +160,16 @@ func TestExtractCSSDecompressError(t *testing.T) {
 	// gzip with wrong CRC
 	var buf strings.Builder
 	gz := gzip.NewWriter(&buf)
-	gz.Write([]byte("test"))
+	_, _ = gz.Write([]byte("test"))
 	gz.Close()
 	gzipped := []byte(buf.String())
 	gzipped[len(gzipped)-1] ^= 0xFF
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(buf.String()))
+		_, _ = w.Write([]byte(buf.String()))
 	}))
 	defer ts.Close()
-	asarReleaseURL = ts.URL
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
 	httpClient = ts.Client()
 
 	_, err := ExtractCSS("1.0.0")

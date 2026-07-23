@@ -5,7 +5,7 @@
 
 # ocd - Obsidian CSS Diff
 
-Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR bundle directly from GitHub releases — no Docker or Node.js needed.
+Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR bundle directly from GitHub releases - no Docker or Node.js needed.
 
 ## Install
 

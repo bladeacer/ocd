@@ -62,7 +62,7 @@ func TestFetchAllCached(t *testing.T) {
 func TestFetchAllWithServers(t *testing.T) {
 	rssSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><item><title>Obsidian 1.0.0 Desktop</title><description>test</description><pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate></item></channel></rss>`))
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><item><title>Obsidian 1.0.0 Desktop</title><description>test</description><pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate></item></channel></rss>`))
 	}))
 	defer rssSrv.Close()
 
@@ -72,12 +72,12 @@ func TestFetchAllWithServers(t *testing.T) {
 				{Name: "1.0.0", LastUpdated: "2024-01-01"},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer dockerSrv.Close()
 
 	electronSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"1.0.0": "1"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"1.0.0": "1"})
 	}))
 	defer electronSrv.Close()
 
