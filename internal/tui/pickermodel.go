@@ -256,7 +256,7 @@ func (m *pickerModel) applyFilter() {
 	var filtered []table.Row
 
 	for _, row := range m.rows {
-		if !m.showMobile && row[1] == "Mobile" {
+		if !m.showMobile && row[1] == mobileStr {
 			continue
 		}
 		if m.searchQ != "" {

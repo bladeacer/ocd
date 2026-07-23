@@ -293,7 +293,7 @@ func (m *model) applyFilters() {
 		vType := row[2]
 		status := row[4]
 
-		if !m.showMobile && vType == "Mobile" {
+		if !m.showMobile && vType == mobileStr {
 			continue
 		}
 		if !m.showEarlyAccess {
@@ -516,6 +516,8 @@ func fmtElectron(v string) string {
 }
 
 const (
+	mobileStr        = "Mobile"
+	desktopStr       = "Desktop"
 	statusFoundStr   = "Found"
 	statusMissingStr = "Missing"
 	statusNAStr      = "N/A"
