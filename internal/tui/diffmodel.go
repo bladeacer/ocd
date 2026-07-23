@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -53,11 +54,21 @@ type diffModel struct {
 	searchQ    string
 
 	pendingG bool
+	pendingZ bool
+	count    int
 
 	summaryStyle lipgloss.Style
 	hintStyle    lipgloss.Style
 	content      string
 }
+
+var (
+	cssCommentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Italic(true)
+	cssAtRuleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true)
+	cssSelectorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#60a5fa"))
+	cssPropStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbf24"))
+	cssPunctStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+)
 
 func NewDiffModel(result *models.DiffResult) *diffModel {
 	ti := textinput.New()
@@ -88,7 +99,7 @@ func (m *diffModel) build() {
 	}
 
 	if !m.result.HasDiff {
-		m.content = fmt.Sprintf("Diff: %s -> %s\n\nNo differences found.", m.result.VersionA, m.result.VersionB)
+		m.content = ""
 		return
 	}
 
@@ -188,25 +199,87 @@ func parseLeadingNum(s string) int {
 	return n
 }
 
-func (m *diffModel) render() {
+func (m *diffModel) renderHeader() string {
 	header := fmt.Sprintf("Diff: %s -> %s", m.result.VersionA, m.result.VersionB)
 	summary := m.summaryStyle.Render(
 		fmt.Sprintf(" 1 file changed, %d insertion(s)(+), %d deletion(s)(-)", m.insertions, m.deletions),
 	)
+	s := header + "\n" + summary
+	if m.sideBySide {
+		s += m.renderColumnHeaders()
+	}
+	return s
+}
 
+func (m *diffModel) renderColumnHeaders() string {
+	half := (m.vp.Width - 3) / 2
+	if half < 20 {
+		half = 20
+	}
+	oldLabel := fmt.Sprintf("Old (%s)", m.result.VersionA)
+	newLabel := fmt.Sprintf("New (%s)", m.result.VersionB)
+	if m.result.VersionA == "" {
+		oldLabel = "Old"
+	}
+	if m.result.VersionB == "" {
+		newLabel = "New"
+	}
+	leftHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.Color("#a78bfa")).Render(oldLabel)
+	rightHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.Color("#a78bfa")).Render(newLabel)
+	div := lipgloss.NewStyle().Width(3).Render(" │ ")
+	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("#374151")).Render(
+		strings.Repeat("─", half-2) + "─┼─" + strings.Repeat("─", half-2),
+	)
+	return "\n" + lipgloss.JoinHorizontal(lipgloss.Top, leftHdr, div, rightHdr) + "\n" + sep
+}
+
+func (m *diffModel) render() {
 	var b strings.Builder
-	b.WriteString(header)
-	b.WriteString("\n")
-	b.WriteString(summary)
-	b.WriteString("\n\n")
-
 	if m.sideBySide {
 		m.renderSideBySide(&b)
 	} else {
 		m.renderUnified(&b)
 	}
-
 	m.content = b.String()
+}
+
+func highlightCSSLine(raw string) string {
+	line := raw
+	trimmed := strings.TrimSpace(line)
+
+	if trimmed == "" {
+		return line
+	}
+
+	if strings.HasPrefix(trimmed, "/*") {
+		return cssCommentStyle.Render(line)
+	}
+
+	if strings.HasPrefix(trimmed, "@") {
+		parts := strings.SplitN(trimmed, " ", 2)
+		return cssAtRuleStyle.Render(parts[0])
+	}
+
+	if trimmed == "}" || trimmed == "{" {
+		return cssPunctStyle.Render(line)
+	}
+
+	colonIdx := strings.Index(trimmed, ":")
+	if colonIdx > 0 && !strings.HasPrefix(trimmed, ".") && !strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") {
+		prop := trimmed[:colonIdx]
+
+		if !strings.Contains(prop, " ") {
+			propIdx := strings.Index(line, prop)
+			result := line[:propIdx] + cssPropStyle.Render(prop) + line[propIdx+len(prop):]
+			return result
+		}
+	}
+
+	if strings.HasSuffix(trimmed, "{") || (!strings.Contains(trimmed, ":") && !strings.Contains(trimmed, ";")) {
+		return cssSelectorStyle.Render(line)
+	}
+
+	return line
 }
 
 func (m *diffModel) renderUnified(b *strings.Builder) {
@@ -215,6 +288,11 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 
 	for _, pl := range m.parsed {
 		line := m.formatLine(pl, &lineNumStyle)
+
+		if pl.kind == lineContext || pl.kind == lineAdd || pl.kind == lineDel {
+			line = highlightCSSLine(line)
+		}
+
 		if m.searchQ != "" {
 			plain := stripANSI(line)
 			if strings.Contains(strings.ToLower(plain), strings.ToLower(m.searchQ)) {
@@ -234,6 +312,7 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		half = 20
 	}
 	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
+	divider := lipgloss.NewStyle().Width(3).Render(" │ ")
 
 	groups := m.groupSideBySide()
 
@@ -249,8 +328,6 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			newNum = strconv.Itoa(g.newLineNum)
 		}
 
-		var oldStyled, newStyled string
-
 		switch g.kind {
 		case lineHunkHeader:
 			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true).Render(g.oldContent)
@@ -262,26 +339,18 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			b.WriteString(styled)
 			b.WriteString("\n")
 			continue
-		case lineDel:
-			oldStyled = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(
-				truncate(oldContent, half*2),
-			)
-		case lineAdd:
-			newStyled = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(
-				truncate(newContent, half*2),
-			)
-		default:
-			oldStyled = truncate(oldContent, half*2)
-			newStyled = truncate(newContent, half*2)
+		case lineEmpty:
+			b.WriteString("\n")
+			continue
 		}
 
-		left := fmt.Sprintf("%s %s", padRight(oldNum, 4), oldStyled)
-		right := fmt.Sprintf("%s %s", padRight(newNum, 4), newStyled)
+		oldStyled := renderSideContent(oldContent, oldNum, g.kind == lineDel, half-2)
+		newStyled := renderSideContent(newContent, newNum, g.kind == lineAdd, half-2)
 
-		left = truncate(left, half)
-		right = truncate(right, half)
+		left := lipgloss.NewStyle().Width(half - 2).Render(oldStyled)
+		right := lipgloss.NewStyle().Width(half - 2).Render(newStyled)
 
-		line := left + " | " + right
+		line := lipgloss.JoinHorizontal(lipgloss.Top, left, divider, right)
 
 		if m.searchQ != "" {
 			plain := stripANSI(line)
@@ -293,6 +362,38 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
+}
+
+func renderSideContent(content, num string, highlighted bool, width int) string {
+	if content == "" {
+		return strings.Repeat(" ", width)
+	}
+	var prefix string
+	if num != "" {
+		prefix = padRight(num, 4)
+	} else {
+		prefix = "    "
+	}
+	text := content
+	if len(text) > 3 && width > 3 && len([]rune(text)) > width-len(prefix) {
+		runes := []rune(text)
+		maxLen := width - len([]rune(prefix)) - 3
+		if maxLen > 0 {
+			text = string(runes[:maxLen]) + "..."
+		} else {
+			text = string(runes[:width-len(prefix)])
+		}
+	}
+	styled := prefix + " " + text
+	styled = highlightCSSLine(styled)
+	if highlighted {
+		if strings.HasPrefix(content, "+") {
+			styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(styled)
+		} else if strings.HasPrefix(content, "-") {
+			styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(styled)
+		}
+	}
+	return styled
 }
 
 type sbGroup struct {
@@ -428,15 +529,29 @@ func stripANSI(s string) string {
 }
 
 func (m *diffModel) refreshViewport() {
+	if m.content == "" {
+		m.build()
+	}
 	m.render()
 	m.vp.SetContent(m.content)
+}
+
+func (m *diffModel) viewportHeight(totalHeight int) int {
+	h := totalHeight - 5
+	if m.sideBySide {
+		h -= 2
+	}
+	if h < 3 {
+		h = 3
+	}
+	return h
 }
 
 func (m *diffModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.vp.Width = msg.Width - 2
-		m.vp.Height = msg.Height - 6
+		m.vp.Height = m.viewportHeight(msg.Height)
 		m.ready = true
 		m.build()
 		m.vp.SetContent(m.content)
@@ -516,37 +631,168 @@ func (m *diffModel) scrollToMatch() {
 }
 
 func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q", keyCtrlC, keyEscape:
-		return m, tea.Quit
+	key := msg.String()
 
-	case "n":
+	if key == "q" || key == keyCtrlC || key == keyEscape {
+		m.pendingG = false
+		m.pendingZ = false
+		return m, tea.Quit
+	}
+
+	if m.pendingZ {
+		m.pendingZ = false
+		m.pendingG = false
+		switch key {
+		case "z":
+			m.vp.GotoTop()
+			if len(m.hunkIdx) > 0 {
+				idx := m.hunkIdx[m.currentHunk]
+				m.vp.GotoTop()
+				for i := 0; i < idx; i++ {
+					m.vp.LineDown(1)
+				}
+				half := m.vp.Height / 2
+				if idx > half {
+					m.vp.YOffset = idx - half
+				}
+			}
+			m.count = 0
+			return m, nil
+		case "t":
+			m.vp.GotoTop()
+			if len(m.hunkIdx) > 0 {
+				idx := m.hunkIdx[m.currentHunk]
+				for i := 0; i < idx; i++ {
+					m.vp.LineDown(1)
+				}
+			}
+			m.count = 0
+			return m, nil
+		case "b":
+			if len(m.hunkIdx) > 0 {
+				idx := m.hunkIdx[m.currentHunk]
+				m.vp.GotoBottom()
+				remaining := m.vp.YOffset
+				m.vp.GotoTop()
+				if idx > remaining {
+					m.vp.YOffset = idx - remaining
+				} else {
+					for i := 0; i < idx; i++ {
+						m.vp.LineDown(1)
+					}
+				}
+			}
+			m.count = 0
+			return m, nil
+		}
+		m.count = 0
+		return m, nil
+	}
+
+	switch key {
+	case "{":
+		m.pendingG = false
+		m.count = 0
+		m.prevHunk()
+		return m, nil
+	case "}":
+		m.pendingG = false
+		m.count = 0
 		m.nextHunk()
 		return m, nil
+
+	case "n":
+		m.pendingG = false
+		n := m.count
+		if n < 1 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			m.nextHunk()
+		}
+		m.count = 0
+		return m, nil
 	case "N":
-		m.prevHunk()
+		m.pendingG = false
+		n := m.count
+		if n < 1 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			m.prevHunk()
+		}
+		m.count = 0
+		return m, nil
+
+	case "j", "down":
+		m.pendingG = false
+		n := m.count
+		if n < 1 {
+			n = 1
+		}
+		m.vp.LineDown(n)
+		m.count = 0
+		return m, nil
+
+	case "k", "up":
+		m.pendingG = false
+		n := m.count
+		if n < 1 {
+			n = 1
+		}
+		m.vp.LineUp(n)
+		m.count = 0
 		return m, nil
 
 	case "v":
+		m.pendingG = false
 		m.sideBySide = !m.sideBySide
 		m.render()
 		m.vp.SetContent(m.content)
 		return m, nil
 
 	case "g":
+		m.pendingZ = false
 		if m.pendingG {
 			m.pendingG = false
 			m.vp.GotoTop()
 		} else {
 			m.pendingG = true
 		}
+		m.count = 0
 		return m, nil
 	case "G":
 		m.pendingG = false
+		m.pendingZ = false
 		m.vp.GotoBottom()
+		m.count = 0
+		return m, nil
+
+	case "z":
+		m.pendingG = false
+		if m.pendingZ {
+			m.pendingZ = false
+			m.vp.GotoTop()
+			if len(m.hunkIdx) > 0 {
+				idx := m.hunkIdx[m.currentHunk]
+				m.vp.GotoTop()
+				for i := 0; i < idx; i++ {
+					m.vp.LineDown(1)
+				}
+				half := m.vp.Height / 2
+				if idx > half {
+					m.vp.YOffset = idx - half
+				}
+			}
+		} else {
+			m.pendingZ = true
+		}
+		m.count = 0
 		return m, nil
 
 	case "/":
+		m.pendingG = false
+		m.pendingZ = false
 		m.searchMode = true
 		m.searchIn.Focus()
 		m.searchIn.SetValue("")
@@ -556,18 +802,42 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "y":
 		m.pendingG = false
+		m.pendingZ = false
 		return m, m.yankHunk()
 
 	case "Y":
 		m.pendingG = false
+		m.pendingZ = false
 		return m, m.yankAll()
 
 	case "o":
 		m.pendingG = false
+		m.pendingZ = false
 		return m, m.openInEditor()
+
+	case "CtrlU":
+		m.pendingG = false
+		m.pendingZ = false
+		m.vp.HalfViewUp()
+		return m, nil
+
+	case "CtrlD":
+		m.pendingG = false
+		m.pendingZ = false
+		m.vp.HalfViewDown()
+		return m, nil
 	}
 
 	m.pendingG = false
+	m.pendingZ = false
+
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+		r := msg.Runes[0]
+		if unicode.IsDigit(r) {
+			m.count = m.count*10 + int(r-'0')
+			return m, nil
+		}
+	}
 
 	var cmd tea.Cmd
 	m.vp, cmd = m.vp.Update(msg)
@@ -662,11 +932,16 @@ func (m *diffModel) View() string {
 	if !m.ready {
 		return "\n  Loading diff view..."
 	}
-	if m.content == "" {
+	if m.content == "" && m.result.HasDiff && m.result.Error == nil {
 		m.build()
 		m.vp.SetContent(m.content)
+	} else if !m.result.HasDiff && m.result.Error == nil {
+		return fmt.Sprintf("Diff: %s -> %s\n\nNo differences found.", m.result.VersionA, m.result.VersionB)
+	} else if m.result.Error != nil {
+		return fmt.Sprintf("Error: %v", m.result.Error)
 	}
 
+	header := m.renderHeader()
 	var searchBar string
 	if m.searchMode {
 		searchBar = "\n" + searchBoxStyle.Render(m.searchIn.View())
@@ -685,12 +960,12 @@ func (m *diffModel) View() string {
 	}
 
 	footer := m.hintStyle.Render(
-		fmt.Sprintf("\n%s  n/N hunk  v %s  gg/G top/bot  / search  y hunk  Y all  o edit  q quit",
+		fmt.Sprintf("\n%s  {} hunk  j/k scroll  v %s  gg/G top/bot  zz zt zb  / search  n/N hunk  y hunk  Y all  o edit  q quit",
 			hunkInfo, mode,
 		),
 	)
 
-	return m.vp.View() + searchBar + footer
+	return header + "\n\n" + m.vp.View() + searchBar + footer
 }
 
 func RunDiffViewer(result *models.DiffResult) error {

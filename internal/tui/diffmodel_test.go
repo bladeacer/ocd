@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -9,6 +10,11 @@ import (
 
 	"github.com/bladeacer/ocd/internal/models"
 )
+
+func TestMain(m *testing.M) {
+	os.Setenv("CLICOLOR_FORCE", "1")
+	os.Exit(m.Run())
+}
 
 func TestParseHunkHeader(t *testing.T) {
 	tests := []struct {
@@ -122,8 +128,8 @@ func TestDiffModelBuildNoDiff(t *testing.T) {
 	}
 	m := NewDiffModel(r)
 	m.build()
-	if !strings.Contains(m.content, "No differences found.") {
-		t.Errorf("expected 'No differences found.' in content, got %q", m.content)
+	if m.content != "" {
+		t.Errorf("expected empty content for no-diff, got %q", m.content)
 	}
 }
 
@@ -156,8 +162,8 @@ func TestDiffModelBuildWithDiff(t *testing.T) {
 	if m.content == "" {
 		t.Fatal("expected non-empty content")
 	}
-	if !strings.Contains(m.content, "Diff: 1.0.0 -> 1.0.1") {
-		t.Errorf("expected header in content, got: %s", m.content)
+	if !strings.Contains(m.content, "a") {
+		t.Errorf("expected diff content, got: %s", m.content)
 	}
 	if m.insertions != 1 {
 		t.Errorf("expected 1 insertion, got %d", m.insertions)
@@ -994,5 +1000,223 @@ func TestDiffModelScrollToMatchEmptyParsed(t *testing.T) {
 	m.scrollToMatch()
 	if m.vp.YOffset != 0 {
 		t.Errorf("expected YOffset=0 for empty parsed, got %d", m.vp.YOffset)
+	}
+}
+
+func TestRenderColumnHeaders(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "v1",
+		VersionB: "v2",
+		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
+		HasDiff:  true,
+	}
+	m := NewDiffModel(r)
+	m.sideBySide = true
+	m.vp.Width = 100
+	result := m.renderHeader()
+	if !strings.Contains(result, "v1") {
+		t.Errorf("expected v1 in header, got: %s", result)
+	}
+	if !strings.Contains(result, "v2") {
+		t.Errorf("expected v2 in header, got: %s", result)
+	}
+	if !strings.Contains(result, "Old") {
+		t.Errorf("expected Old in column headers, got: %s", result)
+	}
+	if !strings.Contains(result, "New") {
+		t.Errorf("expected New in column headers, got: %s", result)
+	}
+}
+
+func TestHighlightCSSLineComment(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
+	input := "/* comment */"
+	result := highlightCSSLine(input)
+	if result == input {
+		t.Error("expected CSS comment to be styled")
+	}
+}
+
+func TestHighlightCSSLineAtRule(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
+	input := "@media screen"
+	result := highlightCSSLine(input)
+	if result == input {
+		t.Errorf("expected at-rule to be styled, got: %q", result)
+	}
+}
+
+func TestHighlightCSSLinePropValue(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
+	input := "  color: red;"
+	result := highlightCSSLine(input)
+	if result == input {
+		t.Error("expected property:value to be styled")
+	}
+	plain := stripANSI(result)
+	if !strings.Contains(plain, "color") {
+		t.Errorf("expected color in output, got: %s", plain)
+	}
+	if !strings.Contains(plain, "red") {
+		t.Errorf("expected red in output, got: %s", plain)
+	}
+}
+
+func TestHighlightCSSLineSelector(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
+	input := ".class {"
+	result := highlightCSSLine(input)
+	if result == input {
+		t.Error("expected selector to be styled")
+	}
+}
+
+func TestHighlightCSSLinePunct(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
+	input := "}"
+	result := highlightCSSLine(input)
+	if result == input {
+		t.Error("expected punctuation to be styled")
+	}
+}
+
+func TestDiffModelViewWithSideBySide(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	v := m.View()
+	if !strings.Contains(v, "side-by-side") {
+		t.Errorf("expected 'side-by-side' in view, got: %s", v)
+	}
+}
+
+func TestDiffModelHandleNormalKeyCurlyBrace(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n@@ -20,3 +20,3 @@\n p\n-q\n+r\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+
+	if m.currentHunk != 0 {
+		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'}'}})
+	if m.currentHunk != 1 {
+		t.Errorf("expected hunk 1 after }, got %d", m.currentHunk)
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'{'}})
+	if m.currentHunk != 0 {
+		t.Errorf("expected hunk 0 after {, got %d", m.currentHunk)
+	}
+}
+
+func TestDiffModelHandleNormalKeyCountMotion(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
+
+	y0 := m.vp.YOffset
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	if m.count != 3 {
+		t.Errorf("expected count=3, got %d", m.count)
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.vp.YOffset <= y0 {
+		t.Errorf("expected YOffset to increase after 3j, before=%d after=%d", y0, m.vp.YOffset)
+	}
+	if m.count != 0 {
+		t.Errorf("expected count reset to 0, got %d", m.count)
+	}
+}
+
+func TestDiffModelHandleNormalKeyCountHunk(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n@@ -20,3 +20,3 @@\n p\n-q\n+r\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+
+	if m.currentHunk != 0 {
+		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if m.count != 2 {
+		t.Errorf("expected count=2, got %d", m.count)
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if m.currentHunk != 2 {
+		t.Errorf("expected hunk 2 after 2n, got %d", m.currentHunk)
+	}
+	if m.count != 0 {
+		t.Errorf("expected count reset to 0, got %d", m.count)
+	}
+}
+
+func TestDiffModelHandleNormalKeyZZ(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
+	if !m.pendingZ {
+		t.Error("expected pendingZ=true after first z")
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
+	if m.pendingZ {
+		t.Error("expected pendingZ=false after second z")
+	}
+}
+
+func TestDiffModelHandleNormalKeyZT(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
+	if !m.pendingZ {
+		t.Error("expected pendingZ=true after first z")
+	}
+
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	if m.pendingZ {
+		t.Error("expected pendingZ=false after zt")
+	}
+}
+
+func TestDiffModelViewportHeightSideBySide(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.sideBySide = true
+	h := m.viewportHeight(50)
+	want := 50 - 5 - 2
+	if h != want {
+		t.Errorf("expected %d, got %d", want, h)
 	}
 }

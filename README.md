@@ -13,6 +13,7 @@ Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR b
 
 ```bash
 go install github.com/bladeacer/ocd@latest
+ocd
 ```
 
 ### From source
@@ -21,6 +22,7 @@ go install github.com/bladeacer/ocd@latest
 git clone https://github.com/bladeacer/ocd
 cd ocd
 make build
+./ocd
 ```
 
 ### Pre-built binaries
@@ -133,4 +135,4 @@ Tests cover RSS electron fill, Docker tag parsing, ASAR extraction, CSS diff, an
 
 ## License
 
-GPL-3.0
+GPL-3.0.
