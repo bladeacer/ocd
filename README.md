@@ -146,6 +146,10 @@ make clean       # remove binary and cache
 Tests cover RSS electron fill, Docker tag parsing, ASAR extraction,
 CSS diff, cache operations and other details.
 
+## LLM Usage Disclaimer
+
+AI Assistance is used when working on the codebase.
+
 ## License
 
-GPL-3.0.
+MIT License.
