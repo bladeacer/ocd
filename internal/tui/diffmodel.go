@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,13 +8,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/BurntSushi/toml"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"gopkg.in/yaml.v3"
 
 	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/models"
@@ -324,14 +320,32 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
 	activeLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
 	dimStyle := lipgloss.NewStyle().Faint(true)
+	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e"))
+	delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444"))
+	hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true)
+	fileStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6366f1"))
 
 	activeStart, activeEnd := m.activeRange()
 
 	for i, pl := range m.parsed {
-		line := m.formatLine(pl, &lineNumStyle)
+		var line string
 
-		if pl.kind == lineContext || pl.kind == lineAdd || pl.kind == lineDel {
-			line = highlightCSSLine(line)
+		switch pl.kind {
+		case lineContext:
+			content := highlightCSSLine(pl.text)
+			line = fmt.Sprintf("%s | %s", lineNumStyle.Render(lineNums(pl)), content)
+		case lineAdd:
+			content := highlightCSSLine(pl.text)
+			line = addStyle.Render(fmt.Sprintf("%s |%s", lineNums(pl), content))
+		case lineDel:
+			content := highlightCSSLine(pl.text)
+			line = delStyle.Render(fmt.Sprintf("%s |%s", lineNums(pl), content))
+		case lineHunkHeader:
+			line = hunkStyle.Render(fmt.Sprintf("  %s", pl.text))
+		case lineFileHeader:
+			line = fileStyle.Render(fmt.Sprintf("  %s", pl.text))
+		case lineEmpty:
+			line = ""
 		}
 
 		plain := stripANSI(line)
@@ -359,6 +373,18 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
+}
+
+func lineNums(pl parsedLine) string {
+	oldNum := ""
+	newNum := ""
+	if pl.oldLineNum > 0 {
+		oldNum = fmt.Sprintf("%d", pl.oldLineNum)
+	}
+	if pl.newLineNum > 0 {
+		newNum = fmt.Sprintf("%d", pl.newLineNum)
+	}
+	return fmt.Sprintf("%4s %4s", oldNum, newNum)
 }
 
 func (m *diffModel) renderSideBySide(b *strings.Builder) {
@@ -1084,28 +1110,31 @@ func (m *diffModel) runTLDR() tea.Cmd {
 			m.tldrResult = core.AnalyzeDiff(m.result.Diff)
 			m.tldrResult.VersionA = m.result.VersionA
 			m.tldrResult.VersionB = m.result.VersionB
+			m.tldrResult.SemverBump = core.SemverBump(m.result.VersionA, m.result.VersionB)
 		}
 		fmt.Print(m.tldrResult.String())
 		fname := fmt.Sprintf("ocd-tldr-%s-%s.toml", m.result.VersionA, m.result.VersionB)
 		fname = strings.ReplaceAll(fname, ".", "_")
 		exportTLDR(m.tldrResult, fname, "toml")
-		fmt.Printf("\nTLDR exported to %s\n", fname)
+		fmt.Printf("  Exported: %s\n", fname)
 		return nil
 	}
 }
 
 func exportTLDR(t *core.TLDRResult, path, format string) {
 	var data []byte
+	var err error
 	switch format {
 	case "json":
-		data, _ = json.MarshalIndent(t, "", "  ")
+		data, err = t.MarshalJSON()
 	case "yaml":
-		data, _ = yaml.Marshal(t)
+		data, err = t.MarshalYAML()
 	default:
-		var buf bytes.Buffer
-		encoder := toml.NewEncoder(&buf)
-		encoder.Encode(t)
-		data = buf.Bytes()
+		data, err = t.MarshalTOML()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+		return
 	}
 	os.WriteFile(path, data, 0644)
 }

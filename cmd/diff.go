@@ -113,6 +113,7 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 				tldrResult := core.AnalyzeDiff(result.Diff)
 				tldrResult.VersionA = versionA
 				tldrResult.VersionB = versionB
+				tldrResult.SemverBump = core.SemverBump(versionA, versionB)
 				exportPath := ""
 				if tldrOutput != "" {
 					exportPath = expandPath(tldrOutput)

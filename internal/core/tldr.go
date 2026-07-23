@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -14,6 +15,9 @@ import (
 type TLDRResult struct {
 	VersionA               string            `json:"version_a" yaml:"version_a" toml:"version_a"`
 	VersionB               string            `json:"version_b" yaml:"version_b" toml:"version_b"`
+	VersionADate           string            `json:"version_a_date,omitempty" yaml:"version_a_date,omitempty" toml:"version_a_date,omitempty"`
+	VersionBDate           string            `json:"version_b_date,omitempty" yaml:"version_b_date,omitempty" toml:"version_b_date,omitempty"`
+	SemverBump             string            `json:"semver_bump" yaml:"semver_bump" toml:"semver_bump"`
 	AdditionsLOC           int               `json:"additions_loc" yaml:"additions_loc" toml:"additions_loc"`
 	DeletionsLOC           int               `json:"deletions_loc" yaml:"deletions_loc" toml:"deletions_loc"`
 	SelectorsAdded         []string          `json:"selectors_added" yaml:"selectors_added" toml:"selectors_added"`
@@ -24,10 +28,11 @@ type TLDRResult struct {
 	ImportantCount         int               `json:"important_count" yaml:"important_count" toml:"important_count"`
 	AverageSpecificity     float64           `json:"average_specificity" yaml:"average_specificity" toml:"average_specificity"`
 	TotalSelectorsAnalyzed int               `json:"total_selectors_analyzed" yaml:"total_selectors_analyzed" toml:"total_selectors_analyzed"`
+	ColorCounts            map[string]int    `json:"color_counts,omitempty" yaml:"color_counts,omitempty" toml:"color_counts,omitempty"`
 }
 
 type VariableChange struct {
-	Name    string `json:"name" yaml:"name" toml:"name"`
+	Name     string `json:"name" yaml:"name" toml:"name"`
 	OldValue string `json:"old_value" yaml:"old_value" toml:"old_value"`
 	NewValue string `json:"new_value" yaml:"new_value" toml:"new_value"`
 }
@@ -35,9 +40,79 @@ type VariableChange struct {
 var (
 	cssVarRe      = regexp.MustCompile(`--[\w-]+`)
 	selectorRe    = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
-	specificityRe = regexp.MustCompile(`^(\s*)([.#][\w-]+)`)
 	importantRe   = regexp.MustCompile(`!important`)
+	hexRe         = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
+	rgbRe         = regexp.MustCompile(`(?i)rgba?\(`)
+	hslRe         = regexp.MustCompile(`(?i)hsla?\(`)
+	oklchRe       = regexp.MustCompile(`(?i)oklch\(`)
+	otherColorRe  = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
 )
+
+func SemverBump(a, b string) string {
+	va, aok := parseVersion(a)
+	vb, bok := parseVersion(b)
+	if !aok || !bok {
+		return "unknown"
+	}
+	if vb[0] > va[0] {
+		return "major"
+	}
+	if vb[1] > va[1] {
+		return "minor"
+	}
+	if vb[2] > va[2] {
+		return "patch"
+	}
+	return "none"
+}
+
+func parseVersion(v string) ([]int, bool) {
+	var parts []int
+	for _, s := range strings.SplitN(v, ".", 3) {
+		var n int
+		if _, err := fmt.Sscanf(s, "%d", &n); err == nil {
+			parts = append(parts, n)
+		} else {
+			return []int{0, 0, 0}, false
+		}
+	}
+	for len(parts) < 3 {
+		parts = append(parts, 0)
+	}
+	return parts[:3], true
+}
+
+func countColors(line string) map[string]int {
+	counts := make(map[string]int)
+	for _, m := range hexRe.FindAllString(line, -1) {
+		counts["hex"]++
+		_ = m
+	}
+	for range rgbRe.FindAllString(line, -1) {
+		counts["rgb"]++
+	}
+	for range hslRe.FindAllString(line, -1) {
+		counts["hsl"]++
+	}
+	for range oklchRe.FindAllString(line, -1) {
+		counts["oklch"]++
+	}
+	for _, m := range otherColorRe.FindAllString(line, -1) {
+		switch {
+		case strings.HasPrefix(m, "oklab"):
+			counts["oklab"]++
+		case strings.HasPrefix(m, "lab("):
+			counts["lab"]++
+		case strings.HasPrefix(m, "lch("):
+			counts["lch"]++
+		case strings.HasPrefix(m, "hwb("):
+			counts["hwb"]++
+		case strings.HasPrefix(m, "color("):
+			counts["color()"]++
+		}
+	}
+	return counts
+}
 
 func AnalyzeDiff(diff string) *TLDRResult {
 	r := &TLDRResult{}
@@ -68,11 +143,13 @@ func AnalyzeDiff(diff string) *TLDRResult {
 
 	for name, newVal := range addedVars {
 		if oldVal, ok := removedVars[name]; ok {
-			r.CSSVariablesChanged = append(r.CSSVariablesChanged, VariableChange{
-				Name:     name,
-				OldValue: oldVal,
-				NewValue: newVal,
-			})
+			if oldVal != newVal {
+				r.CSSVariablesChanged = append(r.CSSVariablesChanged, VariableChange{
+					Name:     name,
+					OldValue: oldVal,
+					NewValue: newVal,
+				})
+			}
 		} else {
 			r.CSSVariablesAdded = append(r.CSSVariablesAdded, name)
 		}
@@ -112,6 +189,13 @@ func (r *TLDRResult) analyzeLine(content, prefix string, currentSelector *string
 
 	if importantRe.MatchString(content) {
 		r.ImportantCount++
+	}
+
+	for color, count := range countColors(content) {
+		if r.ColorCounts == nil {
+			r.ColorCounts = make(map[string]int)
+		}
+		r.ColorCounts[color] += count
 	}
 }
 
@@ -184,6 +268,18 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 		"average_specificity":     r.AverageSpecificity,
 		"total_selectors_analyzed": r.TotalSelectorsAnalyzed,
 	}
+	if r.VersionADate != "" {
+		v["version_a_date"] = r.VersionADate
+	}
+	if r.VersionBDate != "" {
+		v["version_b_date"] = r.VersionBDate
+	}
+	if r.SemverBump != "" {
+		v["semver_bump"] = r.SemverBump
+	}
+	if len(r.ColorCounts) > 0 {
+		v["color_counts"] = r.ColorCounts
+	}
 	if err := encoder.Encode(v); err != nil {
 		return nil, err
 	}
@@ -191,12 +287,87 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 }
 
 func (r *TLDRResult) String() string {
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("ocd TLDR: %s → %s\n", r.VersionA, r.VersionB))
-	b.WriteString(fmt.Sprintf("  +%d -%d LOC\n", r.AdditionsLOC, r.DeletionsLOC))
-	b.WriteString(fmt.Sprintf("  Selectors: +%d -%d\n", len(r.SelectorsAdded), len(r.SelectorsRemoved)))
-	b.WriteString(fmt.Sprintf("  Variables: +%d -%d ~%d\n", len(r.CSSVariablesAdded), len(r.CSSVariablesRemoved), len(r.CSSVariablesChanged)))
-	b.WriteString(fmt.Sprintf("  !important: %d\n", r.ImportantCount))
-	b.WriteString(fmt.Sprintf("  Avg specificity: %.1f\n", r.AverageSpecificity))
-	return b.String()
+	var left strings.Builder
+	left.WriteString("  ____   ____  ____\n")
+	left.WriteString(" / __ \\ / __ \\|  _ \\\n")
+	left.WriteString("| |  | | |  | | | | |\n")
+	left.WriteString("| |__| | |__| | |_| |\n")
+	left.WriteString(" \\____/ \\____/|____/\n")
+
+	var right strings.Builder
+	sep := " -> "
+	if r.SemverBump != "" && r.SemverBump != "none" && r.SemverBump != "unknown" {
+		sep = fmt.Sprintf(" (%s) -> ", r.SemverBump)
+	}
+	right.WriteString(fmt.Sprintf("  %s%s%s\n", r.VersionA, sep, r.VersionB))
+
+	right.WriteString(fmt.Sprintf("  %d insertions(+), %d deletions(-)\n", r.AdditionsLOC, r.DeletionsLOC))
+
+	var parts []string
+	if n := len(r.SelectorsAdded); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d sel", n))
+	}
+	if n := len(r.SelectorsRemoved); n > 0 {
+		parts = append(parts, fmt.Sprintf("-%d sel", n))
+	}
+	if n := len(r.CSSVariablesAdded); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d var", n))
+	}
+	if n := len(r.CSSVariablesRemoved); n > 0 {
+		parts = append(parts, fmt.Sprintf("-%d var", n))
+	}
+	if n := len(r.CSSVariablesChanged); n > 0 {
+		parts = append(parts, fmt.Sprintf("~%d var", n))
+	}
+	if r.ImportantCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d !impt", r.ImportantCount))
+	}
+	if r.TotalSelectorsAnalyzed > 0 {
+		parts = append(parts, fmt.Sprintf("spc %.1f", r.AverageSpecificity))
+	}
+	if len(r.ColorCounts) > 0 {
+		colors := make([]string, 0, len(r.ColorCounts))
+		for c := range r.ColorCounts {
+			colors = append(colors, c)
+		}
+		sort.Strings(colors)
+		var colorParts []string
+		for _, c := range colors {
+			colorParts = append(colorParts, fmt.Sprintf("%s:%d", c, r.ColorCounts[c]))
+		}
+		parts = append(parts, strings.Join(colorParts, " "))
+	}
+	if len(parts) > 0 {
+		right.WriteString("  " + strings.Join(parts, ", ") + "\n")
+	}
+
+	leftStr := left.String()
+	rightStr := right.String()
+	leftLines := strings.Split(leftStr, "\n")
+	rightLines := strings.Split(rightStr, "\n")
+
+	var out strings.Builder
+	maxLines := len(leftLines)
+	if len(rightLines) > maxLines {
+		maxLines = len(rightLines)
+	}
+	for i := 0; i < maxLines; i++ {
+		l := ""
+		if i < len(leftLines) {
+			l = leftLines[i]
+		}
+		r := ""
+		if i < len(rightLines) {
+			r = rightLines[i]
+		}
+		if l == "" && r == "" {
+			continue
+		}
+		out.WriteString(l)
+		if r != "" {
+			out.WriteString("  " + r)
+		}
+		out.WriteString("\n")
+	}
+	return out.String()
 }
