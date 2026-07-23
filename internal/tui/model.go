@@ -51,6 +51,7 @@ type model struct {
 	foundOnly       bool
 	sortByPriority  bool
 	searchQuery     string
+	showHelp        bool
 
 	selectedVersion string
 
@@ -219,6 +220,10 @@ func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		m.sortByPriority = !m.sortByPriority
 		m.applyFilters()
+
+	case "?":
+		m.showHelp = !m.showHelp
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -250,6 +255,14 @@ func (m *model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.searchQuery = m.searchIn.Value()
 		m.applyFilters()
+		return m, nil
+	case "?":
+		m.state = stateTable
+		m.searchQuery = ""
+		m.searchIn.SetValue("")
+		m.searchIn.Blur()
+		m.applyFilters()
+		m.showHelp = !m.showHelp
 		return m, nil
 	}
 

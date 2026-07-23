@@ -5,7 +5,8 @@
 
 # ocd - Obsidian CSS Diff
 
-Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR bundle directly from GitHub releases - no Docker or Node.js needed.
+Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR
+bundle directly from GitHub releases - no Docker or Node.js needed.
 
 ## Install
 
@@ -13,7 +14,7 @@ Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR b
 
 ```bash
 go install github.com/bladeacer/ocd@latest
-ocd
+ococdd
 ```
 
 ### From source
@@ -43,7 +44,8 @@ sudo mv ocd /usr/local/bin/
 ocd interact
 ```
 
-Browse versions — fetches RSS changelog, Docker Hub tags, and Electron-Chromium mappings asynchronously. Loading messages rotate and show elapsed time.
+Browse versions — fetches RSS changelog, Docker Hub tags, and Electron-Chromium
+mappings asynchronously. Loading messages rotate and show elapsed time.
 
 | Key | Action |
 |-----|--------|
@@ -54,30 +56,34 @@ Browse versions — fetches RSS changelog, Docker Hub tags, and Electron-Chromiu
 | `m` | Toggle mobile versions |
 | `e` | Toggle early access / insider versions |
 | `f` | Show only versions with Docker images |
-| `s` | Toggle sort priority: extracted CSS first → Docker found → N/A → missing |
+| `s` | Toggle sort priority: extracted CSS first -> Docker found -> N/A -> missing |
 | `q` / `ctrl+c` | Quit |
 
 ### Diff versions
 
 ```bash
 ocd diff -p          # interactive picker (two-step selection)
-ocd diff 1.12.7 1.12.6  # direct CLI
+ocd diff 1.12.6 1.12.7  # direct CLI
 ```
 
-The diff viewer opens with scrollable, colorized output.
+The diff viewer opens with scrollable, colorized output. Active hunk lines
+are highlighted with a blue background.
 
 | Key | Action |
 |-----|--------|
-| `↑` `↓` | Scroll one line |
+| `↑` `↓` `j` `k` | Scroll one line |
 | `pgup` `pgdn` | Scroll one page |
-| `gg` | Jump to top of diff |
-| `G` | Jump to bottom of diff |
-| `n` | Next diff hunk |
-| `N` | Previous diff hunk |
-| `/` | Search within diff — highlights matching lines, scrolls to first match |
+| `{}` | Jump prev/next diff hunk |
+| `gg` / `G` | Jump to top / bottom of diff |
+| `zz` / `zt` / `zb` | Center / top / bottom current hunk |
+| `n` / `N` | Next / previous (search match when searching, else hunk) |
+| `/` | Search within diff - highlights matching lines, scrolls to first match |
+| `v` | Toggle side-by-side view |
 | `y` | Yank current hunk to clipboard |
 | `Y` | Yank entire diff to clipboard |
+| `yy` | Yank current hunk header line |
 | `o` | Open diff in `$EDITOR` (falls back to `vi`) |
+| `?` | Toggle help popup |
 | `q` / `ctrl+c` | Quit diff viewer |
 
 Picker mode (when called with `-p`):
@@ -131,7 +137,8 @@ make release-test  # goreleaser snapshot (no upload)
 make clean       # remove binary and cache
 ```
 
-Tests cover RSS electron fill, Docker tag parsing, ASAR extraction, CSS diff, and cache operations.
+Tests cover RSS electron fill, Docker tag parsing, ASAR extraction,
+CSS diff, cache operations and other details.
 
 ## License
 

@@ -59,3 +59,6 @@ clean: ## Remove build artifacts and cache
 	rm -f $(BINARY)
 	rm -f coverage.out
 	rm -rf .obsidian_cache
+
+snapshot: ## Test goreleaser locally (builds all platforms)
+	goreleaser release --snapshot --clean

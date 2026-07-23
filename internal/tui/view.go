@@ -8,6 +8,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var helpBorderStyle = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("#a78bfa")).
+	Padding(1, 2).
+	Foreground(lipgloss.Color("#e5e7eb"))
+
 func (m *model) View() string {
 	switch m.state {
 	case stateLoading:
@@ -32,6 +38,10 @@ func (m *model) loadingView() string {
 }
 
 func (m *model) tableContentView() string {
+	if m.showHelp {
+		return m.renderHelp() + "\n\n" + helpStyle.Render("  Press ? to close help\n")
+	}
+
 	var b strings.Builder
 
 	b.WriteString(titleStyle("ocd -- Obsidian CSS Diff"))
@@ -48,6 +58,25 @@ func (m *model) tableContentView() string {
 	return b.String()
 }
 
+func (m *model) renderHelp() string {
+	helpContent := []string{
+		"  ocd -- Help",
+		"",
+		"  ↑ ↓      Navigate rows",
+		"  ← →      Scroll columns",
+		"  enter    Select version (extract CSS)",
+		"  /        Search/filter versions",
+		"  m        Toggle mobile versions",
+		"  e        Toggle early access / insider versions",
+		"  f        Show only versions with Docker images",
+		"  s        Toggle sort priority",
+		"  q        Quit",
+		"  ?        Close this help",
+	}
+	helpText := strings.Join(helpContent, "\n")
+	return helpBorderStyle.Render(helpText)
+}
+
 func (m *model) footerView() string {
 	parts := []string{
 		fmtStatus("M", m.showMobile),
@@ -56,7 +85,7 @@ func (m *model) footerView() string {
 		fmtStatus("S", m.sortByPriority),
 	}
 
-	keys := helpStyle.Render("up/down/left/right nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit")
+	keys := helpStyle.Render("up/down/left/right nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit  ? help")
 
 	info := fmt.Sprintf("[%s]", strings.Join(parts, " "))
 	return "\n\n" + info + "\n" + keys

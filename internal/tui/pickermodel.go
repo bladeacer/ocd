@@ -36,10 +36,12 @@ type pickerModel struct {
 	secondVer  string
 	err        error
 	done       bool
-	searchMode bool
-	searchQ    string
-	showMobile bool
-	rows       []table.Row
+	searchMode      bool
+	searchQ         string
+	showMobile      bool
+	showEarlyAccess bool
+	showHelp        bool
+	rows            []table.Row
 }
 
 func NewPicker(f *sources.Fetcher, force bool) *pickerModel {
@@ -70,7 +72,7 @@ func NewPicker(f *sources.Fetcher, force bool) *pickerModel {
 		tbl:        t,
 		search:     ti,
 		spinner:    newSpinnerModel([]string{"Loading version data..."}),
-		showMobile: true,
+		showMobile: false,
 	}
 }
 
@@ -134,6 +136,12 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "m":
 		m.showMobile = !m.showMobile
 		m.applyFilter()
+	case "e":
+		m.showEarlyAccess = !m.showEarlyAccess
+		m.applyFilter()
+	case "?":
+		m.showHelp = !m.showHelp
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -163,6 +171,14 @@ func (m *pickerModel) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.searchQ = m.search.Value()
 		m.applyFilter()
+		return m, nil
+	case "?":
+		m.searchMode = false
+		m.searchQ = ""
+		m.search.Blur()
+		m.search.SetValue("")
+		m.applyFilter()
+		m.showHelp = !m.showHelp
 		return m, nil
 	}
 
@@ -259,6 +275,18 @@ func (m *pickerModel) applyFilter() {
 		if !m.showMobile && row[1] == mobileStr {
 			continue
 		}
+		if !m.showEarlyAccess && m.result != nil {
+			var isEarly bool
+			for _, v := range m.result.RSS {
+				if v.Version == row[0] {
+					isEarly = v.IsEarly
+					break
+				}
+			}
+			if isEarly {
+				continue
+			}
+		}
 		if m.searchQ != "" {
 			haystack := strings.ToLower(strings.Join(row, " "))
 			if !strings.Contains(haystack, strings.ToLower(m.searchQ)) {
@@ -291,6 +319,22 @@ func (m *pickerModel) View() string {
 		return m.spinner.View()
 	}
 
+	if m.showHelp {
+		helpContent := []string{
+			"  Version Picker Help",
+			"",
+			"  ↑ ↓      Navigate rows",
+			"  enter    Select version",
+			"  /        Search/filter versions",
+			"  m        Toggle mobile versions",
+			"  e        Toggle early access / insider versions",
+			"  q        Quit",
+			"  ?        Close this help",
+		}
+		helpText := strings.Join(helpContent, "\n")
+		return helpBorderStyle.Render(helpText) + "\n\n" + helpStyle.Render("  Press ? to close help\n")
+	}
+
 	prompt := "Select the first version:"
 	if m.step == stepPickSecond {
 		prompt = fmt.Sprintf("Select the second version (first: %s):", m.firstVer)
@@ -301,11 +345,12 @@ func (m *pickerModel) View() string {
 		searchBar = "\n" + searchBoxStyle.Render(m.search.View())
 	}
 
-	filters := fmt.Sprintf("[%s]",
+	filters := fmt.Sprintf("[%s %s]",
 		fmtStatus("M", m.showMobile),
+		fmtStatus("E", m.showEarlyAccess),
 	)
 
-	keys := helpStyle.Render("/ search  m toggle mobile  enter select  q quit")
+	keys := helpStyle.Render("/ search  m toggle mobile  e toggle early  enter select  q quit  ? help")
 
 	return fmt.Sprintf("%s%s\n\n%s\n\n%s  %s", prompt, searchBar, m.tbl.View(), filters, keys)
 }
