@@ -14,6 +14,14 @@ import (
 	"github.com/bladeacer/ocd/internal/tui"
 )
 
+func expandPath(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		home, _ := os.UserHomeDir()
+		p = filepath.Join(home, p[2:])
+	}
+	return os.ExpandEnv(p)
+}
+
 func exportTLDR(t *core.TLDRResult, path, format string) error {
 	var data []byte
 	var err error
@@ -31,8 +39,11 @@ func exportTLDR(t *core.TLDRResult, path, format string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func printTLDR(t *core.TLDRResult) {
+func printTLDR(t *core.TLDRResult, exportPath string) {
 	fmt.Println(t.String())
+	if exportPath != "" {
+		fmt.Printf("  Exported: %s\n", exportPath)
+	}
 }
 
 func ensureCSS(version string) error {
@@ -50,6 +61,7 @@ func NewDiffCmd() *cobra.Command {
 	var interactive bool
 	var tldr bool
 	var tldrFormat string
+	var tldrOutput string
 
 	cmd := &cobra.Command{
 		Use:   "diff [version-a] [version-b]",
@@ -101,13 +113,19 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 				tldrResult := core.AnalyzeDiff(result.Diff)
 				tldrResult.VersionA = versionA
 				tldrResult.VersionB = versionB
-				printTLDR(tldrResult)
+				exportPath := ""
+				if tldrOutput != "" {
+					exportPath = expandPath(tldrOutput)
+				} else {
+					exportPath, _ = os.Getwd()
+				}
 				fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", versionA, versionB, tldrFormat)
 				fname = strings.ReplaceAll(fname, ".", "_")
-				if err := exportTLDR(tldrResult, fname, tldrFormat); err != nil {
+				fullPath := filepath.Join(exportPath, fname)
+				if err := exportTLDR(tldrResult, fullPath, tldrFormat); err != nil {
 					return fmt.Errorf("export tldr: %w", err)
 				}
-				fmt.Printf("TLDR exported to %s\n", fname)
+				printTLDR(tldrResult, fullPath)
 				return nil
 			}
 
@@ -119,5 +137,6 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 	cmd.Flags().BoolVarP(&interactive, "pick", "p", false, "Launch interactive version picker")
 	cmd.Flags().BoolVar(&tldr, "tldr", false, "Print TLDR analysis and export to file")
 	cmd.Flags().StringVar(&tldrFormat, "tldr-format", "toml", "Export format: toml (default), json, or yaml")
+	cmd.Flags().StringVar(&tldrOutput, "tldr-output", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME)")
 	return cmd
 }

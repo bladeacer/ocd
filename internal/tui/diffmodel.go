@@ -297,6 +297,9 @@ func highlightCSSLine(raw string) string {
 }
 
 func highlightSubstring(plain, query string, style lipgloss.Style) string {
+	if query == "" {
+		return plain
+	}
 	lower := strings.ToLower(plain)
 	q := strings.ToLower(query)
 	var out strings.Builder
@@ -347,10 +350,10 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 
 		if i >= activeStart && i < activeEnd {
 			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] {
-				line = activeLineStyle.Render(plain)
+				line = activeLineStyle.Render(line)
 			}
 		} else if pl.kind != lineEmpty {
-			line = dimStyle.Render(plain)
+			line = dimStyle.Render(line)
 		}
 
 		b.WriteString(line)
@@ -388,7 +391,7 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		case lineHunkHeader:
 			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true).Render(g.oldContent)
 			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] && i >= activeStart && i < activeEnd {
-				styled = activeLineStyle.Render(stripANSI(styled))
+				styled = activeLineStyle.Render(styled)
 			}
 			b.WriteString(styled)
 			b.WriteString("\n")
@@ -422,12 +425,10 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			}
 		} else if i >= activeStart && i < activeEnd {
 			if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
-				plain := stripANSI(line)
-				line = activeLineStyle.Render(plain)
+				line = activeLineStyle.Render(line)
 			}
 		} else if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
-			plain := stripANSI(line)
-			line = dimStyle.Render(plain)
+			line = dimStyle.Render(line)
 		}
 
 		b.WriteString(line)

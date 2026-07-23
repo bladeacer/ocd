@@ -3,3 +3,6 @@
 .lccst
 ocd
 dist
+*toml
+*json
+*yaml

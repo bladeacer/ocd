@@ -157,8 +157,10 @@ func TestRenderHelpCenteredNarrow(t *testing.T) {
 
 func TestModelViewDispatchesLoading(t *testing.T) {
 	m := &model{
-		state:   stateLoading,
-		spinner: newSpinnerModel([]string{"Loading..."}).spinner,
+		state:        stateLoading,
+		spinner:      newSpinnerModel([]string{"Loading..."}).spinner,
+		loadMessages: []string{"Loading..."},
+		loadIndex:    0,
 	}
 	v := m.View()
 	if !strings.Contains(v, "Loading") {

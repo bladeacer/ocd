@@ -170,8 +170,21 @@ func (r *TLDRResult) MarshalYAML() ([]byte, error) {
 func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := toml.NewEncoder(&buf)
-	type Alias TLDRResult
-	if err := encoder.Encode((*Alias)(r)); err != nil {
+	v := map[string]any{
+		"version_a":               r.VersionA,
+		"version_b":               r.VersionB,
+		"additions_loc":           r.AdditionsLOC,
+		"deletions_loc":           r.DeletionsLOC,
+		"selectors_added":         r.SelectorsAdded,
+		"selectors_removed":       r.SelectorsRemoved,
+		"css_variables_added":     r.CSSVariablesAdded,
+		"css_variables_removed":   r.CSSVariablesRemoved,
+		"css_variables_changed":   r.CSSVariablesChanged,
+		"important_count":         r.ImportantCount,
+		"average_specificity":     r.AverageSpecificity,
+		"total_selectors_analyzed": r.TotalSelectorsAnalyzed,
+	}
+	if err := encoder.Encode(v); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -179,27 +192,11 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 
 func (r *TLDRResult) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("TLDR Diff: %s -> %s\n", r.VersionA, r.VersionB))
-	b.WriteString(fmt.Sprintf("  Additions: %d LOC\n", r.AdditionsLOC))
-	b.WriteString(fmt.Sprintf("  Deletions: %d LOC\n", r.DeletionsLOC))
-	b.WriteString(fmt.Sprintf("  Selectors added: %d\n", len(r.SelectorsAdded)))
-	b.WriteString(fmt.Sprintf("  Selectors removed: %d\n", len(r.SelectorsRemoved)))
-	b.WriteString(fmt.Sprintf("  CSS variables added: %d\n", len(r.CSSVariablesAdded)))
-	b.WriteString(fmt.Sprintf("  CSS variables removed: %d\n", len(r.CSSVariablesRemoved)))
-	b.WriteString(fmt.Sprintf("  CSS variables changed: %d\n", len(r.CSSVariablesChanged)))
-	b.WriteString(fmt.Sprintf("  !important count: %d\n", r.ImportantCount))
-	b.WriteString(fmt.Sprintf("  Average specificity: %.1f\n", r.AverageSpecificity))
-	if len(r.SelectorsAdded) > 0 {
-		b.WriteString(fmt.Sprintf("  Selectors added: %v\n", r.SelectorsAdded))
-	}
-	if len(r.SelectorsRemoved) > 0 {
-		b.WriteString(fmt.Sprintf("  Selectors removed: %v\n", r.SelectorsRemoved))
-	}
-	if len(r.CSSVariablesChanged) > 0 {
-		b.WriteString("  CSS variable changes:\n")
-		for _, vc := range r.CSSVariablesChanged {
-			b.WriteString(fmt.Sprintf("    %s: %q -> %q\n", vc.Name, vc.OldValue, vc.NewValue))
-		}
-	}
+	b.WriteString(fmt.Sprintf("ocd TLDR: %s → %s\n", r.VersionA, r.VersionB))
+	b.WriteString(fmt.Sprintf("  +%d -%d LOC\n", r.AdditionsLOC, r.DeletionsLOC))
+	b.WriteString(fmt.Sprintf("  Selectors: +%d -%d\n", len(r.SelectorsAdded), len(r.SelectorsRemoved)))
+	b.WriteString(fmt.Sprintf("  Variables: +%d -%d ~%d\n", len(r.CSSVariablesAdded), len(r.CSSVariablesRemoved), len(r.CSSVariablesChanged)))
+	b.WriteString(fmt.Sprintf("  !important: %d\n", r.ImportantCount))
+	b.WriteString(fmt.Sprintf("  Avg specificity: %.1f\n", r.AverageSpecificity))
 	return b.String()
 }
