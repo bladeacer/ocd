@@ -293,7 +293,8 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
 	currMatch := lipgloss.NewStyle().Background(lipgloss.Color("#b91c1c"))
 	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
-	activeStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
+	activeLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
+	dimStyle := lipgloss.NewStyle().Faint(true)
 
 	activeStart, activeEnd := m.activeRange()
 
@@ -318,8 +319,12 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 		}
 
-		if i >= activeStart && i < activeEnd && pl.kind != lineEmpty {
-			line = activeStyle.Render(plain)
+		if i >= activeStart && i < activeEnd {
+			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] {
+				line = activeLineStyle.Render(plain)
+			}
+		} else if pl.kind != lineEmpty {
+			line = dimStyle.Render(plain)
 		}
 
 		b.WriteString(line)
@@ -334,7 +339,8 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 	}
 	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
 	currMatch := lipgloss.NewStyle().Background(lipgloss.Color("#b91c1c"))
-	activeStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
+	activeLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
+	dimStyle := lipgloss.NewStyle().Faint(true)
 	divider := lipgloss.NewStyle().Width(3).Render(" │ ")
 
 	groups := m.groupSideBySide()
@@ -355,6 +361,9 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		switch g.kind {
 		case lineHunkHeader:
 			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true).Render(g.oldContent)
+			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] && i >= activeStart && i < activeEnd {
+				styled = activeLineStyle.Render(stripANSI(styled))
+			}
 			b.WriteString(styled)
 			b.WriteString("\n")
 			continue
@@ -385,9 +394,14 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 					line = hl.Render(plain)
 				}
 			}
-		} else if i >= activeStart && i < activeEnd && g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
+		} else if i >= activeStart && i < activeEnd {
+			if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
+				plain := stripANSI(line)
+				line = activeLineStyle.Render(plain)
+			}
+		} else if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
 			plain := stripANSI(line)
-			line = activeStyle.Render(plain)
+			line = dimStyle.Render(plain)
 		}
 
 		b.WriteString(line)
@@ -406,14 +420,35 @@ func renderSideContent(content, num string, highlighted bool, width int) string 
 		prefix = "    "
 	}
 	text := content
-	if len(text) > 3 && width > 3 && len([]rune(text)) > width-len(prefix) {
+	maxContent := width - len([]rune(prefix)) - 1
+	if maxContent < 1 {
+		maxContent = 1
+	}
+	if len([]rune(text)) > maxContent {
+		var wrapped strings.Builder
 		runes := []rune(text)
-		maxLen := width - len([]rune(prefix)) - 3
-		if maxLen > 0 {
-			text = string(runes[:maxLen]) + "..."
-		} else {
-			text = string(runes[:width-len(prefix)])
+		for len(runes) > 0 {
+			chunk := maxContent
+			if chunk > len(runes) {
+				chunk = len(runes)
+			}
+			wrapped.WriteString(prefix + " " + string(runes[:chunk]))
+			runes = runes[chunk:]
+			if len(runes) > 0 {
+				wrapped.WriteString("\n")
+			}
+			prefix = padRight("", 4)
 		}
+		styled := wrapped.String()
+		styled = highlightCSSLine(styled)
+		if highlighted {
+			if strings.HasPrefix(content, "+") {
+				styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(styled)
+			} else if strings.HasPrefix(content, "-") {
+				styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(styled)
+			}
+		}
+		return styled
 	}
 	styled := prefix + " " + text
 	styled = highlightCSSLine(styled)
@@ -686,10 +721,28 @@ func (m *diffModel) scrollToMatch() {
 func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
-	if key == "q" || key == keyCtrlC || key == keyEscape {
+	if m.showHelp {
+		m.showHelp = false
+		m.count = 0
+		return m, nil
+	}
+
+	if key == "q" || key == keyCtrlC {
 		m.pendingG = false
 		m.pendingZ = false
 		return m, tea.Quit
+	}
+
+	if key == keyEscape {
+		m.pendingG = false
+		m.pendingZ = false
+		if m.searchMode {
+			m.searchMode = false
+			m.searchQ = ""
+			m.searchIn.Blur()
+			m.refreshViewport()
+		}
+		return m, nil
 	}
 
 	if m.pendingZ {
@@ -1061,6 +1114,10 @@ func (m *diffModel) View() string {
 		return fmt.Sprintf("Error: %v", m.result.Error)
 	}
 
+	if m.showHelp {
+		return m.renderHelp() + "\n\n  Press ? or Esc to close help"
+	}
+
 	header := m.renderHeader()
 	var searchBar string
 	if m.searchMode {
@@ -1080,13 +1137,7 @@ func (m *diffModel) View() string {
 		),
 	)
 
-	body := header + "\n\n" + m.vp.View() + searchBar + footer
-
-	if m.showHelp {
-		body = m.renderHelp() + "\n\n" + body
-	}
-
-	return body
+	return header + "\n\n" + m.vp.View() + searchBar + footer
 }
 
 func (m *diffModel) renderHelp() string {

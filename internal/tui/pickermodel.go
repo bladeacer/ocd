@@ -122,10 +122,20 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKey(msg)
 	}
 
-	switch msg.String() {
+	key := msg.String()
+
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
+	switch key {
 	case "q", keyCtrlC:
 		m.done = true
 		return m, tea.Quit
+	case keyEscape:
+		m.showHelp = false
+		return m, nil
 	case "/":
 		m.searchMode = true
 		m.search.Focus()
@@ -332,7 +342,7 @@ func (m *pickerModel) View() string {
 			"  ?        Close this help",
 		}
 		helpText := strings.Join(helpContent, "\n")
-		return helpBorderStyle.Render(helpText) + "\n\n" + helpStyle.Render("  Press ? to close help\n")
+		return helpBorderStyle.Render(helpText) + "\n\n" + helpStyle.Render("  Press ? or Esc to close help\n")
 	}
 
 	prompt := "Select the first version:"

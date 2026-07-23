@@ -192,9 +192,20 @@ func (m *model) handleLoadingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleTableKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	key := msg.String()
+
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
+	switch key {
 	case "q", keyCtrlC:
 		return m, tea.Quit
+
+	case keyEscape:
+		m.showHelp = false
+		return m, nil
 
 	case keyEnter:
 		return m.selectRow()

@@ -39,7 +39,7 @@ func (m *model) loadingView() string {
 
 func (m *model) tableContentView() string {
 	if m.showHelp {
-		return m.renderHelp() + "\n\n" + helpStyle.Render("  Press ? to close help\n")
+		return m.renderHelp() + "\n\n" + helpStyle.Render("  Press ? or Esc to close help\n")
 	}
 
 	var b strings.Builder
