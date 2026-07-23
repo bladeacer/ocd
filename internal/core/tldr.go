@@ -287,43 +287,39 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 }
 
 func (r *TLDRResult) String() string {
-	var left strings.Builder
-	left.WriteString("  ____   ____  ____\n")
-	left.WriteString(" / __ \\ / __ \\|  _ \\\n")
-	left.WriteString("| |  | | |  | | | | |\n")
-	left.WriteString("| |__| | |__| | |_| |\n")
-	left.WriteString(" \\____/ \\____/|____/\n")
-
-	var right strings.Builder
-	sep := " -> "
-	if r.SemverBump != "" && r.SemverBump != "none" && r.SemverBump != "unknown" {
-		sep = fmt.Sprintf(" (%s) -> ", r.SemverBump)
+	figlet := []string{
+		"  ____   ____  ____",
+		" / __ \\ / __ \\|  _ \\",
+		"| |  | | |  | | | | |",
+		"| |__| | |__| | |_| |",
+		" \\____/ \\____/|____/",
 	}
-	right.WriteString(fmt.Sprintf("  %s%s%s\n", r.VersionA, sep, r.VersionB))
 
-	right.WriteString(fmt.Sprintf("  %d insertions(+), %d deletions(-)\n", r.AdditionsLOC, r.DeletionsLOC))
+	var right []string
+	right = append(right, fmt.Sprintf("  %s -> %s", r.VersionA, r.VersionB))
+	right = append(right, fmt.Sprintf("  %d insertions(+), %d deletions(-)", r.AdditionsLOC, r.DeletionsLOC))
 
 	var parts []string
 	if n := len(r.SelectorsAdded); n > 0 {
-		parts = append(parts, fmt.Sprintf("+%d sel", n))
+		parts = append(parts, fmt.Sprintf("+%d selectors", n))
 	}
 	if n := len(r.SelectorsRemoved); n > 0 {
-		parts = append(parts, fmt.Sprintf("-%d sel", n))
+		parts = append(parts, fmt.Sprintf("-%d selectors", n))
 	}
 	if n := len(r.CSSVariablesAdded); n > 0 {
-		parts = append(parts, fmt.Sprintf("+%d var", n))
+		parts = append(parts, fmt.Sprintf("+%d variables", n))
 	}
 	if n := len(r.CSSVariablesRemoved); n > 0 {
-		parts = append(parts, fmt.Sprintf("-%d var", n))
+		parts = append(parts, fmt.Sprintf("-%d variables", n))
 	}
 	if n := len(r.CSSVariablesChanged); n > 0 {
-		parts = append(parts, fmt.Sprintf("~%d var", n))
+		parts = append(parts, fmt.Sprintf("~%d changed", n))
 	}
 	if r.ImportantCount > 0 {
-		parts = append(parts, fmt.Sprintf("%d !impt", r.ImportantCount))
+		parts = append(parts, fmt.Sprintf("%d !important", r.ImportantCount))
 	}
 	if r.TotalSelectorsAnalyzed > 0 {
-		parts = append(parts, fmt.Sprintf("spc %.1f", r.AverageSpecificity))
+		parts = append(parts, fmt.Sprintf("specificity %.1f", r.AverageSpecificity))
 	}
 	if len(r.ColorCounts) > 0 {
 		colors := make([]string, 0, len(r.ColorCounts))
@@ -337,31 +333,28 @@ func (r *TLDRResult) String() string {
 		}
 		parts = append(parts, strings.Join(colorParts, " "))
 	}
-	if len(parts) > 0 {
-		right.WriteString("  " + strings.Join(parts, ", ") + "\n")
+	for len(parts) > 0 {
+		n := 4
+		if n > len(parts) {
+			n = len(parts)
+		}
+		right = append(right, "  "+strings.Join(parts[:n], ", "))
+		parts = parts[n:]
 	}
 
-	leftStr := left.String()
-	rightStr := right.String()
-	leftLines := strings.Split(leftStr, "\n")
-	rightLines := strings.Split(rightStr, "\n")
-
+	maxLines := len(figlet)
+	if len(right) > maxLines {
+		maxLines = len(right)
+	}
 	var out strings.Builder
-	maxLines := len(leftLines)
-	if len(rightLines) > maxLines {
-		maxLines = len(rightLines)
-	}
 	for i := 0; i < maxLines; i++ {
 		l := ""
-		if i < len(leftLines) {
-			l = leftLines[i]
+		if i < len(figlet) {
+			l = figlet[i]
 		}
 		r := ""
-		if i < len(rightLines) {
-			r = rightLines[i]
-		}
-		if l == "" && r == "" {
-			continue
+		if i < len(right) {
+			r = right[i]
 		}
 		out.WriteString(l)
 		if r != "" {
