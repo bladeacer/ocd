@@ -339,10 +339,11 @@ func (m *pickerModel) View() string {
 			"  m        Toggle mobile versions",
 			"  e        Toggle early access / insider versions",
 			"  q        Quit",
-			"  ?        Close this help",
+			"  ? / Esc  Close this help",
 		}
 		helpText := strings.Join(helpContent, "\n")
-		return helpBorderStyle.Render(helpText) + "\n\n" + helpStyle.Render("  Press ? or Esc to close help\n")
+		box := helpBorderStyle.Render(helpText)
+		return "\n\n\n" + box
 	}
 
 	prompt := "Select the first version:"

@@ -39,7 +39,7 @@ func (m *model) loadingView() string {
 
 func (m *model) tableContentView() string {
 	if m.showHelp {
-		return m.renderHelp() + "\n\n" + helpStyle.Render("  Press ? or Esc to close help\n")
+		return m.renderHelpCentered()
 	}
 
 	var b strings.Builder
@@ -58,7 +58,7 @@ func (m *model) tableContentView() string {
 	return b.String()
 }
 
-func (m *model) renderHelp() string {
+func (m *model) renderHelpCentered() string {
 	helpContent := []string{
 		"  ocd -- Help",
 		"",
@@ -71,10 +71,20 @@ func (m *model) renderHelp() string {
 		"  f        Show only versions with Docker images",
 		"  s        Toggle sort priority",
 		"  q        Quit",
-		"  ?        Close this help",
+		"  ? / Esc  Close this help",
 	}
 	helpText := strings.Join(helpContent, "\n")
-	return helpBorderStyle.Render(helpText)
+	box := helpBorderStyle.Render(helpText)
+	width := m.width
+	if width < 80 {
+		width = 80
+	}
+	pad := (width - lipgloss.Width(box)) / 2
+	if pad < 2 {
+		pad = 2
+	}
+	padded := lipgloss.NewStyle().PaddingLeft(pad).Render(box)
+	return "\n\n\n" + padded
 }
 
 func (m *model) footerView() string {

@@ -1,0 +1,8 @@
+version_a = "a"
+version_b = "b"
+additions_loc = 1
+deletions_loc = 0
+selectors_added = [".class"]
+important_count = 0
+average_specificity = 10.0
+total_selectors_analyzed = 1

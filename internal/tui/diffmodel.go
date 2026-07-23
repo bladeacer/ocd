@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,12 +10,15 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/BurntSushi/toml"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"gopkg.in/yaml.v3"
 
+	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/models"
 )
 
@@ -61,6 +66,8 @@ type diffModel struct {
 	searchMatchIdxs []int
 	searchMatchCurr int
 	showHelp        bool
+
+	tldrResult *core.TLDRResult
 
 	summaryStyle lipgloss.Style
 	hintStyle    lipgloss.Style
@@ -289,6 +296,25 @@ func highlightCSSLine(raw string) string {
 	return line
 }
 
+func highlightSubstring(plain, query string, style lipgloss.Style) string {
+	lower := strings.ToLower(plain)
+	q := strings.ToLower(query)
+	var out strings.Builder
+	start := 0
+	for {
+		idx := strings.Index(lower[start:], q)
+		if idx < 0 {
+			out.WriteString(plain[start:])
+			break
+		}
+		abs := start + idx
+		out.WriteString(plain[start:abs])
+		out.WriteString(style.Render(plain[abs : abs+len(query)]))
+		start = abs + len(query)
+	}
+	return out.String()
+}
+
 func (m *diffModel) renderUnified(b *strings.Builder) {
 	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
 	currMatch := lipgloss.NewStyle().Background(lipgloss.Color("#b91c1c"))
@@ -309,11 +335,11 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 
 		if m.searchQ != "" {
 			if strings.Contains(strings.ToLower(plain), strings.ToLower(m.searchQ)) {
+				style := hl
 				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
-					b.WriteString(currMatch.Render(plain))
-				} else {
-					b.WriteString(hl.Render(plain))
+					style = currMatch
 				}
+				b.WriteString(highlightSubstring(plain, m.searchQ, style))
 				b.WriteString("\n")
 				continue
 			}
@@ -388,11 +414,11 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		if m.searchQ != "" {
 			plain := stripANSI(line)
 			if strings.Contains(strings.ToLower(plain), strings.ToLower(m.searchQ)) {
+				style := hl
 				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
-					line = currMatch.Render(plain)
-				} else {
-					line = hl.Render(plain)
+					style = currMatch
 				}
+				line = highlightSubstring(plain, m.searchQ, style)
 			}
 		} else if i >= activeStart && i < activeEnd {
 			if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
@@ -935,10 +961,10 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingZ = false
 		if m.pendingY {
 			m.pendingY = false
-			return m, m.yankCurrentLine()
+			return m, m.yankLineContent()
 		}
 		m.pendingY = true
-		return m, m.yankHunk()
+		return m, nil
 
 	case "Y":
 		m.pendingG = false
@@ -951,6 +977,13 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingZ = false
 		m.pendingY = false
 		return m, m.openInEditor()
+
+	case "e":
+		m.pendingG = false
+		m.pendingZ = false
+		m.pendingY = false
+		m.count = 0
+		return m, m.runTLDR()
 
 	case "?":
 		m.pendingG = false
@@ -973,6 +1006,10 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.pendingY {
+		m.pendingY = false
+		return m, m.yankHunk()
+	}
 	m.pendingG = false
 	m.pendingZ = false
 	m.pendingY = false
@@ -1016,19 +1053,60 @@ func (m *diffModel) yankHunk() tea.Cmd {
 	}
 }
 
-func (m *diffModel) yankCurrentLine() tea.Cmd {
+func (m *diffModel) yankLineContent() tea.Cmd {
 	return func() tea.Msg {
-		if len(m.hunkIdx) == 0 {
+		if len(m.hunkIdx) == 0 || m.currentHunk >= len(m.hunkIdx) {
 			return nil
 		}
 		start := m.hunkIdx[m.currentHunk]
 		if start >= 0 && start < len(m.parsed) {
-			if err := clipboard.WriteAll(m.parsed[start].text); err != nil {
+			text := m.parsed[start].text
+			if strings.HasPrefix(text, "@@") {
+				if parts := strings.Split(text, "@@"); len(parts) >= 3 {
+					text = strings.TrimSpace(parts[2])
+				}
+			}
+			if err := clipboard.WriteAll(text); err != nil {
 				return nil
 			}
 		}
 		return nil
 	}
+}
+
+func (m *diffModel) runTLDR() tea.Cmd {
+	return func() tea.Msg {
+		if m.result == nil {
+			return nil
+		}
+		if m.tldrResult == nil {
+			m.tldrResult = core.AnalyzeDiff(m.result.Diff)
+			m.tldrResult.VersionA = m.result.VersionA
+			m.tldrResult.VersionB = m.result.VersionB
+		}
+		fmt.Print(m.tldrResult.String())
+		fname := fmt.Sprintf("ocd-tldr-%s-%s.toml", m.result.VersionA, m.result.VersionB)
+		fname = strings.ReplaceAll(fname, ".", "_")
+		exportTLDR(m.tldrResult, fname, "toml")
+		fmt.Printf("\nTLDR exported to %s\n", fname)
+		return nil
+	}
+}
+
+func exportTLDR(t *core.TLDRResult, path, format string) {
+	var data []byte
+	switch format {
+	case "json":
+		data, _ = json.MarshalIndent(t, "", "  ")
+	case "yaml":
+		data, _ = yaml.Marshal(t)
+	default:
+		var buf bytes.Buffer
+		encoder := toml.NewEncoder(&buf)
+		encoder.Encode(t)
+		data = buf.Bytes()
+	}
+	os.WriteFile(path, data, 0644)
 }
 
 func (m *diffModel) yankAll() tea.Cmd {
@@ -1053,9 +1131,23 @@ func (m *diffModel) openInEditor() tea.Cmd {
 	}
 	f.Close()
 
-	editor := os.Getenv("EDITOR")
+	editor := os.Getenv("OCD_DIFF_PAGER")
 	if editor == "" {
-		editor = "vi"
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		if _, err := exec.LookPath("delta"); err == nil {
+			editor = "delta"
+		} else {
+			editor = "less"
+		}
+	}
+	if editor == "less" {
+		cmd := exec.Command("less", "-R", tmpPath)
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			os.Remove(tmpPath)
+			return nil
+		})
 	}
 	cmd := exec.Command(editor, tmpPath)
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
@@ -1073,6 +1165,8 @@ func (m *diffModel) nextHunk() {
 	for i := 0; i < m.hunkIdx[m.currentHunk]; i++ {
 		m.vp.LineDown(1)
 	}
+	m.render()
+	m.vp.SetContent(m.content)
 }
 
 func (m *diffModel) prevHunk() {
@@ -1087,6 +1181,8 @@ func (m *diffModel) prevHunk() {
 	for i := 0; i < m.hunkIdx[m.currentHunk]; i++ {
 		m.vp.LineDown(1)
 	}
+	m.render()
+	m.vp.SetContent(m.content)
 }
 
 func (m *diffModel) activeRange() (int, int) {
@@ -1115,7 +1211,7 @@ func (m *diffModel) View() string {
 	}
 
 	if m.showHelp {
-		return m.renderHelp() + "\n\n  Press ? or Esc to close help"
+		return m.renderHelp()
 	}
 
 	header := m.renderHeader()
@@ -1149,14 +1245,14 @@ func (m *diffModel) renderHelp() string {
 		"  n/N       Next/prev (hunk or search match)",
 		"  gg/G      Top/bottom of diff",
 		"  zz/zt/zb  Center/top/bottom current hunk",
+		"  e         Export TLDR analysis",
 		"  v         Toggle side-by-side",
 		"  /         Search within diff",
 		"  y         Yank current hunk to clipboard",
 		"  Y         Yank entire diff to clipboard",
-		"  yy        Yank current hunk header line",
-		"  o         Open diff in $EDITOR",
-		"  q         Quit",
-		"  ?         Close this help",
+		"  yy        Yank current hunk header line content",
+		"  o         Open diff viewer ($OCD_DIFF_PAGER / $EDITOR / delta / less)",
+		"  q / Esc   Quit / Close help",
 	}
 	helpText := strings.Join(helpContent, "\n")
 	helpStyle := lipgloss.NewStyle().
@@ -1164,7 +1260,16 @@ func (m *diffModel) renderHelp() string {
 		BorderForeground(lipgloss.Color("#a78bfa")).
 		Padding(1, 2).
 		Foreground(lipgloss.Color("#e5e7eb"))
-	return helpStyle.Render(helpText)
+	box := helpStyle.Render(helpText)
+	width := m.vp.Width + 2
+	if width < 80 {
+		width = 80
+	}
+	pad := (width - lipgloss.Width(box)) / 2
+	if pad < 2 {
+		pad = 2
+	}
+	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n  " + box + "\n\n  Press ? or Esc to close help")
 }
 
 func RunDiffViewer(result *models.DiffResult) error {

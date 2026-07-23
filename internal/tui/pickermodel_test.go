@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/bladeacer/ocd/internal/cache"
 	"github.com/bladeacer/ocd/internal/models"
+	"github.com/bladeacer/ocd/internal/sources"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -366,5 +369,234 @@ func TestPickerCSSExtracted(t *testing.T) {
 	result := m.cssExtracted("nonexistent")
 	if result {
 		t.Error("cssExtracted should return false for non-existent file")
+	}
+}
+
+func TestNewPicker(t *testing.T) {
+	c := cache.New(0)
+	f := sources.NewFetcher(c)
+	m := NewPicker(f, false)
+	if m == nil {
+		t.Fatal("expected non-nil picker")
+	}
+	if m.showMobile {
+		t.Error("expected showMobile=false by default")
+	}
+	if m.step != stepPickFirst {
+		t.Error("expected stepPickFirst")
+	}
+}
+
+func TestPickerInit(t *testing.T) {
+	c := cache.New(0)
+	f := sources.NewFetcher(c)
+	m := NewPicker(f, false)
+	cmd := m.Init()
+	if cmd == nil {
+		t.Error("expected non-nil command from Init")
+	}
+}
+
+func TestPickerViewLoading(t *testing.T) {
+	m := &pickerModel{
+		spinner: newSpinnerModel([]string{"Loading..."}),
+	}
+	v := m.View()
+	if !strings.Contains(v, "Loading") {
+		t.Errorf("expected loading view, got %q", v)
+	}
+}
+
+func TestPickerViewError(t *testing.T) {
+	m := &pickerModel{
+		err: errTest("something went wrong"),
+	}
+	v := m.View()
+	if !strings.Contains(v, "something went wrong") {
+		t.Errorf("expected error in view, got %q", v)
+	}
+}
+
+func TestPickerViewHelp(t *testing.T) {
+	m := &pickerModel{
+		showHelp: true,
+		result: &models.FetchResult{
+			RSS:    []models.RSSVersion{},
+			Docker: []models.DockerTag{},
+		},
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+	}
+	v := m.View()
+	if !strings.Contains(v, "Picker Help") {
+		t.Errorf("expected help in view, got %q", v)
+	}
+}
+
+func TestPickerHandleKeyQuestionMark(t *testing.T) {
+	m := &pickerModel{
+		search: textinput.New(),
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+		showMobile: true,
+	}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+	_, _ = m.handleKey(msg)
+	if !m.showHelp {
+		t.Error("showHelp should be true after pressing ?")
+	}
+}
+
+func TestPickerHandleKeyEscape(t *testing.T) {
+	m := &pickerModel{
+		search: textinput.New(),
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+		showMobile: true,
+	}
+	// Esc with help not showing should do nothing
+	msg := tea.KeyMsg{Type: tea.KeyEscape}
+	_, _ = m.handleKey(msg)
+}
+
+func TestPickerHandleKeyEscapeHelp(t *testing.T) {
+	m := &pickerModel{
+		search: textinput.New(),
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+		showHelp: true,
+	}
+	msg := tea.KeyMsg{Type: tea.KeyEscape}
+	_, _ = m.handleKey(msg)
+	if m.showHelp {
+		t.Error("showHelp should be false after Esc")
+	}
+}
+
+func TestPickerHandleKeyE(t *testing.T) {
+	m := &pickerModel{
+		search: textinput.New(),
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+		showMobile: true,
+	}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
+	_, _ = m.handleKey(msg)
+	if !m.showEarlyAccess {
+		t.Error("showEarlyAccess should be true after pressing e")
+	}
+}
+
+func TestPickerApplyFilterEarlyAccess(t *testing.T) {
+	m := &pickerModel{
+		showEarlyAccess: false,
+		result: &models.FetchResult{
+			RSS: []models.RSSVersion{
+				{Version: "1.0.0", Type: models.Desktop, IsEarly: false},
+				{Version: "2.0.0", Type: models.Desktop, IsEarly: true},
+			},
+		},
+		rows: []table.Row{
+			{"1.0.0", "Desktop", "2024-01-01", "Found", "v25"},
+			{"2.0.0", "Desktop", "2024-02-01", "Found", "v26"},
+		},
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+	}
+	m.applyFilter()
+	if len(m.tbl.Rows()) != 1 {
+		t.Fatalf("expected 1 row (filtered early access), got %d", len(m.tbl.Rows()))
+	}
+	if m.tbl.Rows()[0][0] != "1.0.0" {
+		t.Errorf("expected 1.0.0, got %s", m.tbl.Rows()[0][0])
+	}
+}
+
+func TestPickerApplyFilterEarlyAccessNoResult(t *testing.T) {
+	m := &pickerModel{
+		showEarlyAccess: false,
+		rows: []table.Row{
+			{"1.0.0", "Desktop", "2024-01-01", "Found", "v25"},
+		},
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+	}
+	m.applyFilter()
+	if len(m.tbl.Rows()) != 1 {
+		t.Errorf("expected 1 row (no result to check), got %d", len(m.tbl.Rows()))
+	}
+}
+
+func TestPickerHandleKeyQuestionMarkSearch(t *testing.T) {
+	m := &pickerModel{
+		searchMode: true,
+		search:     textinput.New(),
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+				{Title: "Type", Width: 10},
+				{Title: "Date", Width: 12},
+				{Title: "Docker", Width: 8},
+				{Title: "Electron", Width: 10},
+			}),
+		),
+	}
+	m.search.Focus()
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+	_, _ = m.handleSearchKey(msg)
+	if m.searchMode {
+		t.Error("searchMode should be false after ?")
+	}
+	if !m.showHelp {
+		t.Error("showHelp should be true after ? in search")
 	}
 }

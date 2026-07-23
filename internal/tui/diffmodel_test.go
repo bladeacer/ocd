@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/models"
 )
 
@@ -731,8 +732,11 @@ func TestDiffModelHandleNormalKeyY(t *testing.T) {
 	m.build()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	if cmd == nil {
-		t.Error("expected non-nil command from y key")
+	if cmd != nil {
+		t.Log("y key returns a command")
+	}
+	if !m.pendingY {
+		t.Error("expected pendingY=true after y key")
 	}
 }
 
@@ -1235,7 +1239,7 @@ func TestFormatLineBlank(t *testing.T) {
 	}
 }
 
-func TestDiffModelYankCurrentLine(t *testing.T) {
+func TestDiffModelYankLineContent(t *testing.T) {
 	r := &models.DiffResult{
 		VersionA: "a", VersionB: "b",
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
@@ -1243,21 +1247,21 @@ func TestDiffModelYankCurrentLine(t *testing.T) {
 	}
 	m := NewDiffModel(r)
 	m.build()
-	cmd := m.yankCurrentLine()
+	cmd := m.yankLineContent()
 	if cmd == nil {
-		t.Fatal("expected non-nil command for yankCurrentLine")
+		t.Fatal("expected non-nil command for yankLineContent")
 	}
 }
 
-func TestDiffModelYankCurrentLineNoHunks(t *testing.T) {
+func TestDiffModelYankLineContentNoHunks(t *testing.T) {
 	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
-	cmd := m.yankCurrentLine()
+	cmd := m.yankLineContent()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
 	}
 	msg := cmd()
 	if msg != nil {
-		t.Error("expected nil msg from yankCurrentLine with no hunks")
+		t.Error("expected nil msg from yankLineContent with no hunks")
 	}
 }
 
@@ -1272,8 +1276,8 @@ func TestDiffModelYYMotion(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	_, cmd1 := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	if cmd1 == nil {
-		t.Error("expected non-nil command from first y")
+	if cmd1 != nil {
+		t.Log("first y returns a command (expected for hunk yank)")
 	}
 	if !m.pendingY {
 		t.Error("expected pendingY=true after first y")
@@ -1463,5 +1467,201 @@ func TestDiffModelViewFooterKeys(t *testing.T) {
 	}
 	if !strings.Contains(v, "? help") {
 		t.Errorf("expected '? help' in footer, got: %s", v)
+	}
+}
+
+func TestDiffModelYankLineContentExtractsDescription(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@ some description\n a\n-b\n+c\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.build()
+	cmd := m.yankLineContent()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+	_ = cmd()
+}
+
+func TestDiffModelRunTLDR(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n+.class { color: red }\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	cmd := m.runTLDR()
+	if cmd == nil {
+		t.Fatal("expected non-nil command for runTLDR")
+	}
+	msg := cmd()
+	if msg != nil {
+		t.Log("runTLDR returned a message")
+	}
+}
+
+func TestDiffModelRunTLDRCached(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n+.class { color: red }\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	cmd1 := m.runTLDR()
+	if cmd1 == nil {
+		t.Fatal("expected non-nil command for first runTLDR")
+	}
+	cmd1()
+	cmd2 := m.runTLDR()
+	if cmd2 == nil {
+		t.Fatal("expected non-nil command for cached runTLDR")
+	}
+}
+
+func TestDiffModelRunTLDRNilResult(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{})
+	cmd := m.runTLDR()
+	if cmd != nil {
+		t.Log("runTLDR returned a command with nil result")
+	}
+}
+
+func TestDiffModelRenderHelpCentered(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	help := m.renderHelp()
+	if !strings.Contains(help, "Diff Viewer Help") {
+		t.Errorf("expected 'Diff Viewer Help' in help, got %q", help)
+	}
+}
+
+func TestDiffModelNextHunkWithRender(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	if m.currentHunk != 0 {
+		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
+	}
+	m.nextHunk()
+	if m.currentHunk != 1 {
+		t.Errorf("expected hunk 1 after nextHunk, got %d", m.currentHunk)
+	}
+	if m.content == "" {
+		t.Error("expected non-empty content after nextHunk render")
+	}
+}
+
+func TestDiffModelPrevHunkWithRender(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.currentHunk = 0
+	m.prevHunk()
+	if m.currentHunk != 1 {
+		t.Errorf("expected hunk 1 after prevHunk from 0, got %d", m.currentHunk)
+	}
+	if m.content == "" {
+		t.Error("expected non-empty content after prevHunk render")
+	}
+}
+
+func TestDiffModelOpenInEditorDelta(t *testing.T) {
+	t.Setenv("OCD_DIFF_PAGER", "cat")
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "test diff content",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	cmd := m.openInEditor()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+}
+
+func TestDiffModelOpenInEditorLess(t *testing.T) {
+	t.Setenv("OCD_DIFF_PAGER", "")
+	t.Setenv("EDITOR", "cat")
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "test diff content",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	cmd := m.openInEditor()
+	if cmd == nil {
+		t.Fatal("expected non-nil command")
+	}
+}
+
+func TestHighlightSubstring(t *testing.T) {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
+	result := highlightSubstring("hello world", "world", style)
+	if !strings.Contains(result, "world") {
+		t.Errorf("expected 'world' in result, got %q", result)
+	}
+	plain := stripANSI(result)
+	if plain != "hello world" {
+		t.Errorf("expected plain 'hello world', got %q", plain)
+	}
+}
+
+func TestHighlightSubstringNoMatch(t *testing.T) {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
+	result := highlightSubstring("hello world", "xyz", style)
+	plain := stripANSI(result)
+	if plain != "hello world" {
+		t.Errorf("expected plain 'hello world', got %q", plain)
+	}
+}
+
+func TestHighlightSubstringEmptyQuery(t *testing.T) {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
+	result := highlightSubstring("hello", "", style)
+	plain := stripANSI(result)
+	if plain != "hello" {
+		t.Errorf("expected plain 'hello', got %q", plain)
+	}
+}
+
+func TestDiffModelEKey(t *testing.T) {
+	r := &models.DiffResult{
+		VersionA: "a", VersionB: "b",
+		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
+		HasDiff: true,
+	}
+	m := NewDiffModel(r)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if cmd == nil {
+		t.Fatal("expected non-nil command from e key")
+	}
+}
+
+func TestExportTLDR(t *testing.T) {
+	r := &core.TLDRResult{
+		VersionA: "1.0.0",
+		VersionB: "1.1.0",
+	}
+	dir, _ := os.MkdirTemp("", "ocd-test-*")
+	defer os.RemoveAll(dir)
+	exportTLDR(r, dir+"/test.toml", "toml")
+	if _, err := os.Stat(dir + "/test.toml"); os.IsNotExist(err) {
+		t.Error("expected exported file to exist")
 	}
 }

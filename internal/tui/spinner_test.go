@@ -78,3 +78,11 @@ func TestSpinnerModelTick(t *testing.T) {
 		t.Error("expected non-nil command from Tick")
 	}
 }
+
+func TestSpinnerModelLoadTickerReturnsTickMsg(t *testing.T) {
+	s := newSpinnerModel([]string{"Loading..."})
+	msg := s.loadTicker()
+	if _, ok := msg.(tickMsg); !ok {
+		t.Errorf("expected tickMsg, got %T", msg)
+	}
+}

@@ -14,7 +14,7 @@ bundle directly from GitHub releases - no Docker or Node.js needed.
 
 ```bash
 go install github.com/bladeacer/ocd@latest
-ococdd
+ocd
 ```
 
 ### From source
@@ -56,7 +56,9 @@ mappings asynchronously. Loading messages rotate and show elapsed time.
 | `m` | Toggle mobile versions |
 | `e` | Toggle early access / insider versions |
 | `f` | Show only versions with Docker images |
-| `s` | Toggle sort priority: extracted CSS first -> Docker found -> N/A -> missing |
+| `s` | Toggle sort priority: extracted CSS first → Docker found → N/A → missing |
+| `?` | Toggle help overlay |
+| `Esc` | Close search / help overlay |
 | `q` / `ctrl+c` | Quit |
 
 ### Diff versions
@@ -64,6 +66,8 @@ mappings asynchronously. Loading messages rotate and show elapsed time.
 ```bash
 ocd diff -p          # interactive picker (two-step selection)
 ocd diff 1.12.6 1.12.7  # direct CLI
+ocd diff --tldr 1.12.6 1.12.7  # TLDR analysis (CSS heuristics) + TOML export
+ocd diff --tldr --tldr-format json 1.12.6 1.12.7  # TLDR as JSON
 ```
 
 The diff viewer opens with scrollable, colorized output. Active hunk lines
@@ -77,13 +81,15 @@ are highlighted with a blue background.
 | `gg` / `G` | Jump to top / bottom of diff |
 | `zz` / `zt` / `zb` | Center / top / bottom current hunk |
 | `n` / `N` | Next / previous (search match when searching, else hunk) |
-| `/` | Search within diff - highlights matching lines, scrolls to first match |
+| `/` | Search within diff — highlights matching pattern |
 | `v` | Toggle side-by-side view |
 | `y` | Yank current hunk to clipboard |
 | `Y` | Yank entire diff to clipboard |
-| `yy` | Yank current hunk header line |
-| `o` | Open diff in `$EDITOR` (falls back to `vi`) |
-| `?` | Toggle help popup |
+| `yy` | Yank current hunk line content |
+| `e` | Export TLDR analysis to TOML |
+| `o` | Open diff viewer (`$OCD_DIFF_PAGER` / `$EDITOR` / `delta` / `less -R`) |
+| `?` | Toggle help overlay |
+| `Esc` | Close search / help overlay |
 | `q` / `ctrl+c` | Quit diff viewer |
 
 Picker mode (when called with `-p`):
