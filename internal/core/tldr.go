@@ -356,6 +356,12 @@ func (r *TLDRResult) String() string {
 	right = append(right, fmt.Sprintf("  %d insertions(+), %d deletions(-)", r.AdditionsLOC, r.DeletionsLOC))
 
 	var parts []string
+	netDelta := r.AdditionsLOC - r.DeletionsLOC
+	if netDelta >= 0 {
+		parts = append(parts, fmt.Sprintf("+%d LOC", netDelta))
+	} else {
+		parts = append(parts, fmt.Sprintf("%d LOC", netDelta))
+	}
 	if n := len(r.SelectorsAdded); n > 0 {
 		parts = append(parts, fmt.Sprintf("+%d selectors", n))
 	}
@@ -390,7 +396,7 @@ func (r *TLDRResult) String() string {
 		parts = append(parts, strings.Join(colorParts, " "))
 	}
 	for len(parts) > 0 {
-		n := 4
+		n := 3
 		if n > len(parts) {
 			n = len(parts)
 		}
@@ -435,6 +441,7 @@ func (r *TLDRResult) StatString() string {
 	right = append(right, fmt.Sprintf("  %s", r.VersionA))
 
 	var parts []string
+	parts = append(parts, fmt.Sprintf("%d LOC", r.AdditionsLOC))
 	if n := len(r.SelectorsAdded); n > 0 {
 		parts = append(parts, fmt.Sprintf("+%d selectors", n))
 	}
@@ -469,7 +476,7 @@ func (r *TLDRResult) StatString() string {
 		parts = append(parts, strings.Join(colorParts, " "))
 	}
 	for len(parts) > 0 {
-		n := 4
+		n := 3
 		if n > len(parts) {
 			n = len(parts)
 		}

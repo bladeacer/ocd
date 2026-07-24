@@ -359,14 +359,14 @@ func TestDiffModelHunkNavigation(t *testing.T) {
 		t.Errorf("expected initial hunk 0, got %d", m.currentHunk)
 	}
 
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'}'}})
 	if m.currentHunk != 1 {
-		t.Errorf("expected hunk 1 after n, got %d", m.currentHunk)
+		t.Errorf("expected hunk 1 after }, got %d", m.currentHunk)
 	}
 
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'{'}})
 	if m.currentHunk != 0 {
-		t.Errorf("expected hunk 0 after N, got %d", m.currentHunk)
+		t.Errorf("expected hunk 0 after {, got %d", m.currentHunk)
 	}
 }
 
@@ -857,7 +857,7 @@ func TestDiffModelHandleNormalKeyG(t *testing.T) {
 	}
 }
 
-func TestDiffModelHandleNormalKeyNWithSearch(t *testing.T) {
+func TestDiffModelHandleNormalKeyNHunkNav(t *testing.T) {
 	r := &models.DiffResult{
 		VersionA: "a", VersionB: "b",
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
@@ -870,9 +870,9 @@ func TestDiffModelHandleNormalKeyNWithSearch(t *testing.T) {
 	if m.currentHunk != 0 {
 		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
 	}
-	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'}'}})
 	if m.currentHunk != 1 {
-		t.Errorf("expected hunk 1 after n with searchQ set, got %d", m.currentHunk)
+		t.Errorf("expected hunk 1 after }, got %d", m.currentHunk)
 	}
 }
 
@@ -1152,7 +1152,7 @@ func TestDiffModelHandleNormalKeyCountMotion(t *testing.T) {
 	}
 }
 
-func TestDiffModelHandleNormalKeyCountHunk(t *testing.T) {
+func TestDiffModelHandleNormalKeySingleHunk(t *testing.T) {
 	r := &models.DiffResult{
 		VersionA: "a", VersionB: "b",
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n@@ -20,3 +20,3 @@\n p\n-q\n+r\n",
@@ -1165,17 +1165,13 @@ func TestDiffModelHandleNormalKeyCountHunk(t *testing.T) {
 		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
 	}
 
-	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	if m.count != 2 {
-		t.Errorf("expected count=2, got %d", m.count)
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'}'}})
+	if m.currentHunk != 1 {
+		t.Errorf("expected hunk 1 after }, got %d", m.currentHunk)
 	}
-
-	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'}'}})
 	if m.currentHunk != 2 {
-		t.Errorf("expected hunk 2 after 2n, got %d", m.currentHunk)
-	}
-	if m.count != 0 {
-		t.Errorf("expected count reset to 0, got %d", m.count)
+		t.Errorf("expected hunk 2 after second }, got %d", m.currentHunk)
 	}
 }
 
@@ -1364,7 +1360,7 @@ func TestDiffModelSearchMatchNavigation(t *testing.T) {
 	}
 }
 
-func TestDiffModelNSearchFallbackToHunk(t *testing.T) {
+func TestDiffModelNSearchNoFallback(t *testing.T) {
 	r := &models.DiffResult{
 		VersionA: "a", VersionB: "b",
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
@@ -1376,12 +1372,18 @@ func TestDiffModelNSearchFallbackToHunk(t *testing.T) {
 	m.searchQ = "nonexistent"
 	m.buildSearchMatches()
 
+	if len(m.searchMatchIdxs) != 0 {
+		t.Fatalf("expected 0 search matches, got %d", len(m.searchMatchIdxs))
+	}
+
 	if m.currentHunk != 0 {
 		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
 	}
+
+	// n with no search matches should be a no-op (no hunk fallback)
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	if m.currentHunk != 1 {
-		t.Errorf("expected hunk 1 when search has no matches, got %d", m.currentHunk)
+	if m.currentHunk != 0 {
+		t.Errorf("expected hunk 0 (n should not fall back to hunk nav), got %d", m.currentHunk)
 	}
 }
 

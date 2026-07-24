@@ -1138,11 +1138,6 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.count = 0
 			return m, nil
 		}
-		n := m.count
-		n = max(n, 1)
-		for i := 0; i < n; i++ {
-			m.nextHunk()
-		}
 		m.count = 0
 		return m, nil
 	case "N":
@@ -1557,7 +1552,8 @@ func (m *diffModel) renderHelp() string {
 		"",
 		"  {}        Jump prev/next hunk",
 		"  j/k       Scroll up/down",
-		"  n/N       Next/prev (hunk or search match)",
+		"  n/N       Next/prev search match",
+		"  gg/G      Top/bottom of diff",
 		"  gg/G      Top/bottom of diff",
 		"  zz/zt/zb  Center/top/bottom current hunk",
 		"  e         Export TLDR analysis (TOML/JSON/YAML)",

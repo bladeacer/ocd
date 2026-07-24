@@ -8,6 +8,12 @@
 Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR
 bundle directly from GitHub releases - no Docker or Node.js needed.
 
+Keybinds are Vim-inspired so terminal enjoyers will feel right at home. I try
+to stick to a loose interpretation of the UNIX software philosophy here.
+
+Do one thing and do it well, in this case diff-ing `app.css` between
+Obsidian versions.
+
 ## Install
 
 ### go install
@@ -44,7 +50,7 @@ sudo mv ocd /usr/local/bin/
 ocd interact
 ```
 
-Browse versions — fetches RSS changelog, Docker Hub tags, and Electron-Chromium
+Browse versions - fetches RSS changelog, Docker Hub tags, and Electron-Chromium
 mappings asynchronously. Loading messages rotate and show elapsed time.
 
 | Key | Action |
