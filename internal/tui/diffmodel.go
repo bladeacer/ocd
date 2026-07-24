@@ -562,22 +562,28 @@ func renderSideContent(content, num string, width int) string {
 	if len([]rune(text)) > maxContent {
 		var wrapped strings.Builder
 		runes := []rune(text)
+		first := true
 		for len(runes) > 0 {
 			chunk := maxContent
 			if chunk > len(runes) {
 				chunk = len(runes)
 			}
-			wrapped.WriteString(prefix + " " + string(runes[:chunk]))
+			if first {
+				wrapped.WriteString(prefix)
+				wrapped.WriteString(" ")
+				first = false
+			} else {
+				wrapped.WriteString("     ")
+			}
+			wrapped.WriteString(highlightCSSLine(string(runes[:chunk])))
 			runes = runes[chunk:]
 			if len(runes) > 0 {
 				wrapped.WriteString("\n")
 			}
-			prefix = padRight("", 4)
 		}
-		return highlightCSSLine(wrapped.String())
+		return wrapped.String()
 	}
-	styled := prefix + " " + text
-	return highlightCSSLine(styled)
+	return prefix + " " + highlightCSSLine(text)
 }
 
 type sbGroup struct {
@@ -1196,9 +1202,11 @@ func (m *diffModel) runTLDR() tea.Cmd {
 		}
 		fmt.Print(m.tldrResult.String())
 		fname := fmt.Sprintf("ocd-tldr-%s-%s.toml", m.result.VersionA, m.result.VersionB)
-		fname = strings.ReplaceAll(fname, ".", "_")
-		exportTLDR(m.tldrResult, fname, "toml")
-		fmt.Printf("Exported: %s\n", fname)
+		if err := exportTLDR(m.tldrResult, fname, "toml"); err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+		} else {
+			fmt.Printf("Exported: %s\n", fname)
+		}
 		return nil
 	}
 }
@@ -1213,7 +1221,7 @@ func (m *diffModel) computeTLDR() {
 	m.tldrResult.SemverBump = core.SemverBump(m.result.VersionA, m.result.VersionB)
 }
 
-func exportTLDR(t *core.TLDRResult, path, format string) {
+func exportTLDR(t *core.TLDRResult, path, format string) error {
 	var data []byte
 	var err error
 	switch format {
@@ -1225,10 +1233,9 @@ func exportTLDR(t *core.TLDRResult, path, format string) {
 		data, err = t.MarshalTOML()
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "export error: %v\n", err)
-		return
+		return fmt.Errorf("marshal %s: %w", format, err)
 	}
-	os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0644)
 }
 
 func (m *diffModel) yankAll() tea.Cmd {
@@ -1366,15 +1373,15 @@ func (m *diffModel) renderExportPrompt() string {
 		"  [T]OML  [J]SON  [Y]AML\n\n" +
 		"  Esc to cancel"
 	box := style.Render(content)
-	width := m.vp.Width + 2
-	if width < 80 {
-		width = 80
+	w := m.vp.Width
+	if w < 40 {
+		w = 40
 	}
-	pad := (width - lipgloss.Width(box)) / 2
-	if pad < 2 {
-		pad = 2
+	pad := (w - lipgloss.Width(box)) / 2
+	if pad < 0 {
+		pad = 0
 	}
-	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n  " + box)
+	return lipgloss.NewStyle().PaddingLeft(pad).Render(box)
 }
 
 func (m *diffModel) renderHelp() string {
@@ -1423,11 +1430,12 @@ func RunDiffViewer(result *models.DiffResult) error {
 	dm := final.(*diffModel)
 	if dm.exportFormat != "" && dm.tldrResult != nil {
 		fmt.Print(dm.tldrResult.String())
-		safeA := strings.ReplaceAll(dm.result.VersionA, ".", "_")
-		safeB := strings.ReplaceAll(dm.result.VersionB, ".", "_")
-		fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", safeA, safeB, dm.exportFormat)
-		exportTLDR(dm.tldrResult, fname, dm.exportFormat)
-		fmt.Printf("  Exported: %s\n", fname)
+		fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", dm.result.VersionA, dm.result.VersionB, dm.exportFormat)
+		if err := exportTLDR(dm.tldrResult, fname, dm.exportFormat); err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+		} else {
+			fmt.Printf("Exported: %s\n", fname)
+		}
 	}
 	return nil
 }

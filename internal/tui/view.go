@@ -47,7 +47,8 @@ func (m *model) tableContentView() string {
 	b.WriteString(titleStyle("ocd -- Obsidian CSS Diff"))
 
 	if m.state == stateSearch {
-		b.WriteString("\n" + searchBoxStyle.Render(m.searchIn.View()))
+		b.WriteString("\n")
+		b.WriteString(searchBoxStyle.Render(m.searchIn.View()))
 	}
 
 	b.WriteString("\n\n")

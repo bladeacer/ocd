@@ -114,6 +114,24 @@ func countColors(line string) map[string]int {
 	return counts
 }
 
+func AnalyzeCSS(css string) *TLDRResult {
+	r := &TLDRResult{}
+	if css == "" {
+		return r
+	}
+	var currentSelector string
+	varSelectorRe := regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
+	addedVars := map[string]string{}
+	for _, line := range strings.Split(css, "\n") {
+		r.AdditionsLOC++
+		r.analyzeLine(line, "+", &currentSelector, varSelectorRe, addedVars, nil)
+	}
+	for name := range addedVars {
+		r.CSSVariablesAdded = append(r.CSSVariablesAdded, name)
+	}
+	return r
+}
+
 func AnalyzeDiff(diff string) *TLDRResult {
 	r := &TLDRResult{}
 	if diff == "" {
@@ -358,7 +376,8 @@ func (r *TLDRResult) String() string {
 		}
 		out.WriteString(l)
 		if r != "" {
-			out.WriteString("  " + r)
+			out.WriteString("  ")
+			out.WriteString(r)
 		}
 		out.WriteString("\n")
 	}

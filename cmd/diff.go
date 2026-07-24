@@ -42,7 +42,7 @@ func exportTLDR(t *core.TLDRResult, path, format string) error {
 func printTLDR(t *core.TLDRResult, exportPath string) {
 	fmt.Println(t.String())
 	if exportPath != "" {
-		fmt.Printf("\nExported: %s\n", exportPath)
+		fmt.Printf("Exported: %s\n", exportPath)
 	}
 }
 
@@ -121,7 +121,6 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 					exportPath, _ = os.Getwd()
 				}
 				fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", versionA, versionB, tldrFormat)
-				fname = strings.ReplaceAll(fname, ".", "_")
 				fullPath := filepath.Join(exportPath, fname)
 				if err := exportTLDR(tldrResult, fullPath, tldrFormat); err != nil {
 					return fmt.Errorf("export tldr: %w", err)

@@ -1663,8 +1663,22 @@ func TestExportTLDR(t *testing.T) {
 	}
 	dir, _ := os.MkdirTemp("", "ocd-test-*")
 	defer os.RemoveAll(dir)
-	exportTLDR(r, dir+"/test.toml", "toml")
-	if _, err := os.Stat(dir + "/test.toml"); os.IsNotExist(err) {
-		t.Error("expected exported file to exist")
+
+	tests := []struct {
+		format string
+		ext    string
+	}{
+		{"toml", ".toml"},
+		{"json", ".json"},
+		{"yaml", ".yaml"},
+	}
+	for _, tc := range tests {
+		path := dir + "/test" + tc.ext
+		if err := exportTLDR(r, path, tc.format); err != nil {
+			t.Fatalf("exportTLDR(%s): %v", tc.format, err)
+		}
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("expected exported %s file to exist", tc.format)
+		}
 	}
 }
