@@ -350,6 +350,12 @@ func (r *TLDRResult) String() string {
 		"/ /_/ / /___/ /_/ / ",
 		"\\____/\\____/_____/  ",
 	}
+	artWidth := 0
+	for _, l := range figlet {
+		if len(l) > artWidth {
+			artWidth = len(l)
+		}
+	}
 
 	var right []string
 	right = append(right, fmt.Sprintf("  %s -> %s  (%s)", r.VersionA, r.VersionB, r.SemverBump))
@@ -380,8 +386,9 @@ func (r *TLDRResult) String() string {
 	if r.ImportantCount > 0 {
 		parts = append(parts, fmt.Sprintf("%d !important", r.ImportantCount))
 	}
+	var specificityLine string
 	if r.TotalSelectorsAnalyzed > 0 {
-		parts = append(parts, specificityStats(r.Specificities))
+		specificityLine = specificityStats(r.Specificities)
 	}
 	if len(r.ColorCounts) > 0 {
 		colors := make([]string, 0, len(r.ColorCounts))
@@ -403,6 +410,9 @@ func (r *TLDRResult) String() string {
 		right = append(right, "  "+strings.Join(parts[:n], ", "))
 		parts = parts[n:]
 	}
+	if specificityLine != "" {
+		right = append(right, "  "+specificityLine)
+	}
 
 	maxLines := len(figlet)
 	if len(right) > maxLines {
@@ -420,6 +430,9 @@ func (r *TLDRResult) String() string {
 		}
 		out.WriteString(l)
 		if r != "" {
+			if i >= len(figlet) {
+				out.WriteString(strings.Repeat(" ", artWidth))
+			}
 			out.WriteString("  ")
 			out.WriteString(r)
 		}
@@ -435,6 +448,12 @@ func (r *TLDRResult) StatString() string {
 		" / / / / /   / / / /",
 		"/ /_/ / /___/ /_/ / ",
 		"\\____/\\____/_____/  ",
+	}
+	artWidth := 0
+	for _, l := range figlet {
+		if len(l) > artWidth {
+			artWidth = len(l)
+		}
 	}
 
 	var right []string
@@ -460,8 +479,9 @@ func (r *TLDRResult) StatString() string {
 	if r.ImportantCount > 0 {
 		parts = append(parts, fmt.Sprintf("%d !important", r.ImportantCount))
 	}
+	var specificityLine string
 	if r.TotalSelectorsAnalyzed > 0 {
-		parts = append(parts, specificityStats(r.Specificities))
+		specificityLine = specificityStats(r.Specificities)
 	}
 	if len(r.ColorCounts) > 0 {
 		colors := make([]string, 0, len(r.ColorCounts))
@@ -483,6 +503,9 @@ func (r *TLDRResult) StatString() string {
 		right = append(right, "  "+strings.Join(parts[:n], ", "))
 		parts = parts[n:]
 	}
+	if specificityLine != "" {
+		right = append(right, "  "+specificityLine)
+	}
 
 	maxLines := len(figlet)
 	if len(right) > maxLines {
@@ -500,6 +523,9 @@ func (r *TLDRResult) StatString() string {
 		}
 		out.WriteString(l)
 		if r != "" {
+			if i >= len(figlet) {
+				out.WriteString(strings.Repeat(" ", artWidth))
+			}
 			out.WriteString("  ")
 			out.WriteString(r)
 		}

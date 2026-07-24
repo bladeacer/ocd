@@ -58,7 +58,7 @@ mappings asynchronously. Loading messages rotate and show elapsed time.
 | `↑` `↓` | Navigate rows |
 | `←` `→` | Scroll columns |
 | `enter` | Select version for CSS extraction |
-| `/` | Enter search mode — type to filter table live |
+| `/` | Enter search mode - type to filter table live |
 | `m` | Toggle mobile versions |
 | `e` | Toggle early access / insider versions |
 | `f` | Show only versions with Docker images |
@@ -85,7 +85,7 @@ ocd stat 1.12.7 --output ~/reports   # custom output directory
 ```
 
 Analyze a single version's `app.css` for selector count, CSS variables,
-color usage, and specificity — useful for tracking CSS bloat over time.
+color usage, and specificity - useful for tracking CSS bloat over time.
 
 The diff viewer opens with scrollable, colorized output. Active hunk lines
 are highlighted with a blue background.
@@ -98,8 +98,8 @@ are highlighted with a blue background.
 | `gg` / `G` | Jump to top / bottom of diff |
 | `zz` / `zt` / `zb` | Center / top / bottom current hunk |
 | `n` / `N` | Next / previous (search match when searching, else hunk) |
-| `/` | Search within diff — highlights matching pattern |
-| `v` | Toggle side-by-side view |
+| `/` | Search within diff - highlights matching pattern |
+| `v` | Toggle vertical split/unified view |
 | `y` | Yank current hunk to clipboard |
 | `Y` | Yank entire diff to clipboard |
 | `yy` | Yank current hunk line content |
@@ -141,12 +141,89 @@ ocd clean
 | `stat <ver>` | CSS composition stats (selectors, variables, colors) for a single version |
 | `clean` | Wipe `.obsidian_cache/` metadata and extracted CSS |
 
+### Example output: Stat
+
+```bash
+cwd:~$ ./ocd stat 1.12.7
+   ____  __________     1.12.7
+  / __ \/ ____/ __ \    20644 LOC, +1439 selectors, +1049 variables
+ / / / / /   / / / /    66 !important, hex:252 hsl:38 rgb:249
+/ /_/ / /___/ /_/ /     specificity mean 16.4  median 10.0  mode 10.0
+\____/\____/_____/
+
+Exported: /home/data/Desktop/projects/ocd/ocd-stat-1.12.7.toml
+```
+
+### Example output: Stat TOML output
+
+```toml
+additions_loc = 20644
+average_specificity = 16.42807505211954
+css_variables_added = ["--undo-button-bg-color-hover", "--link-outline", "..."]
+deletions_loc = 0
+important_count = 66
+selectors_added = [".messageBar", ".messageBar .closeButton", "#editorUndoBar", "..."]
+total_selectors_analyzed = 1439
+version_a = "1.12.7"
+version_b = ""
+
+[color_counts]
+  hex = 252
+  hsl = 38
+  rgb = 249
+```
+
+### Example output: Diff --tldr
+
+```bash
+cwd:~$ ./ocd diff --tldr 1.11.5 1.12.7
+   ____  __________     1.11.5 -> 1.12.7  (minor)
+  / __ \/ ____/ __ \    507 insertions(+), 258 deletions(-)
+ / / / / /   / / / /    +249 LOC, +24 selectors, -15 selectors
+/ /_/ / /___/ /_/ /     +26 variables, -6 variables, ~2 changed
+\____/\____/_____/      3 !important, hex:13 rgb:7
+                        specificity mean 18.7  median 20.0  mode 20.0
+
+Exported: /home/data/Desktop/projects/ocd/ocd-tldr-1.11.5-1.12.7.toml
+```
+
+### Example output: Diff --tldr TOML output
+
+```toml
+additions_loc = 507
+average_specificity = 18.71794871794872
+css_variables_added = ["--background-modifier-form-field-hover", "--metadata-property-corner-shape-focus", "..."]
+css_variables_removed = ["--nav-item-weight-active", "--corner-smoothing", "..."]
+deletions_loc = 258
+important_count = 3
+selectors_added = [".file-browser-description", ".modal-view-options-toolbar", "..."]
+selectors_removed = [".download-attachments", ".download-attachments .download-attachment-item", "..."]
+semver_bump = "minor"
+total_selectors_analyzed = 39
+version_a = "1.11.5"
+version_b = "1.12.7"
+
+[color_counts]
+  hex = 13
+  rgb = 7
+
+[[css_variables_changed]]
+  name = "--view-bottom-fade-mask"
+  old_value = "linear-gradient(to top, rgba(0, 0, 0, var(--view-bottom-fade-opacity)) 0%, #000000 1px)"
+  new_value = "linear-gradient(to top, #000 0%, #000 1px)"
+
+[[css_variables_changed]]
+  name = "--hidden-nav-offset"
+  old_value = "calc(var(--view-header-height) + var(--header-top-offset))"
+  new_value = "calc(var(--view-header-height) + var(--view-header-top-offset))"
+```
+
 ## How it works
 
 1. Fetches version list from Obsidian's RSS changelog
 2. Cross-references with Docker Hub availability and Electron-to-Chromium mappings
 3. Extracts `app.css` directly from `obsidian-{version}.asar.gz` on GitHub releases
-4. Parses the Electron ASAR archive in pure Go — no external tools needed
+4. Parses the Electron ASAR archive in pure Go - no external tools needed
 
 ## Development
 
