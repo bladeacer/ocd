@@ -11,16 +11,28 @@ bundle directly from GitHub releases - no Docker or Node.js needed.
 Keybinds are Vim-inspired so terminal enjoyers will feel right at home. I try
 to stick to a loose interpretation of the UNIX software philosophy here.
 
-Do one thing and do it well, in this case diff-ing `app.css` between
-Obsidian versions.
+Do one thing and do it well, in this case extracting and comparing `app.css`
+between Obsidian versions.
 
-## Install
+## Installation
 
 ### go install
 
 ```bash
 go install github.com/bladeacer/ocd@latest
 ocd
+```
+
+### Pre-built binaries
+
+Download from [releases](https://github.com/bladeacer/ocd/releases) (linux/windows/darwin, amd64/arm64).
+
+Or if you enjoy the CLI way.
+
+```bash
+curl -LO https://github.com/bladeacer/ocd/releases/latest/download/ocd_linux_amd64.tar.gz
+tar xzf ocd_linux_amd64.tar.gz
+sudo mv ocd /usr/local/bin/
 ```
 
 ### From source
@@ -32,15 +44,6 @@ make build
 ./ocd
 ```
 
-### Pre-built binaries
-
-Download from [releases](https://github.com/bladeacer/ocd/releases) (linux/windows/darwin, amd64/arm64).
-
-```bash
-curl -LO https://github.com/bladeacer/ocd/releases/latest/download/ocd_linux_amd64.tar.gz
-tar xzf ocd_linux_amd64.tar.gz
-sudo mv ocd /usr/local/bin/
-```
 
 ## Usage
 

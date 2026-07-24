@@ -130,6 +130,7 @@ func AnalyzeCSS(css string) *TLDRResult {
 	for name := range addedVars {
 		r.CSSVariablesAdded = append(r.CSSVariablesAdded, name)
 	}
+	r.SelectorsAdded = dedupStrings(r.SelectorsAdded)
 	return r
 }
 
@@ -179,6 +180,8 @@ func AnalyzeDiff(diff string) *TLDRResult {
 		}
 	}
 
+	r.SelectorsAdded = dedupStrings(r.SelectorsAdded)
+	r.SelectorsRemoved = dedupStrings(r.SelectorsRemoved)
 	return r
 }
 
@@ -259,6 +262,18 @@ func specificity(sel string) float64 {
 		}
 	}
 	return score
+}
+
+func dedupStrings(s []string) []string {
+	seen := make(map[string]struct{}, len(s))
+	deduped := make([]string, 0, len(s))
+	for _, v := range s {
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			deduped = append(deduped, v)
+		}
+	}
+	return deduped
 }
 
 func specificityStats(vals []float64) string {
