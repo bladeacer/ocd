@@ -17,9 +17,9 @@ var (
 
 func main() {
 	root := &cobra.Command{
-		Use:           "ocd",
-		Short:         "Track Obsidian versions, extract app.css, and diff CSS changes",
-		Long:          `ocd is a TUI tool for tracking Obsidian versions,
+		Use:   "ocd",
+		Short: "Track Obsidian versions, extract app.css, and diff CSS changes",
+		Long: `ocd is a TUI tool for tracking Obsidian versions,
 extracting app.css from Obsidian releases on GitHub,
 and computing CSS diffs between versions.`,
 		Version:       fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date),

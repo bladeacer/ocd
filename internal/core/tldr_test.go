@@ -274,8 +274,8 @@ func TestCountColorsNone(t *testing.T) {
 
 func TestParseVersion(t *testing.T) {
 	tests := []struct {
-		v     string
-		want  []int
+		v      string
+		want   []int
 		wantOK bool
 	}{
 		{"1.2.3", []int{1, 2, 3}, true},

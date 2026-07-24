@@ -32,10 +32,10 @@ type pickerModel struct {
 	search  textinput.Model
 	spinner *spinnerModel
 
-	firstVer   string
-	secondVer  string
-	err        error
-	done       bool
+	firstVer        string
+	secondVer       string
+	err             error
+	done            bool
 	searchMode      bool
 	searchQ         string
 	showMobile      bool

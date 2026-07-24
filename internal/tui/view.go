@@ -10,9 +10,9 @@ import (
 
 var helpBorderStyle = lipgloss.NewStyle().
 	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("#a78bfa")).
+	BorderForeground(lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}).
 	Padding(1, 2).
-	Foreground(lipgloss.Color("#e5e7eb"))
+	Foreground(lipgloss.AdaptiveColor{Light: "#1f2937", Dark: "#e5e7eb"})
 
 func (m *model) View() string {
 	switch m.state {

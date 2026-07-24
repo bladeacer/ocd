@@ -42,7 +42,7 @@ func exportTLDR(t *core.TLDRResult, path, format string) error {
 func printTLDR(t *core.TLDRResult, exportPath string) {
 	fmt.Println(t.String())
 	if exportPath != "" {
-		fmt.Printf("  Exported: %s\n", exportPath)
+		fmt.Printf("\nExported: %s\n", exportPath)
 	}
 }
 

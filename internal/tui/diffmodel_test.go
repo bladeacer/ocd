@@ -1648,8 +1648,11 @@ func TestDiffModelEKey(t *testing.T) {
 	m := NewDiffModel(r)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
-	if cmd == nil {
-		t.Fatal("expected non-nil command from e key")
+	if cmd != nil {
+		t.Fatal("expected nil command from e key (now sets exportAsk)")
+	}
+	if !m.exportAsk {
+		t.Fatal("expected exportAsk=true after e key")
 	}
 }
 

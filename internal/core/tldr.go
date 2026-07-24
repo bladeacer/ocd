@@ -13,22 +13,22 @@ import (
 )
 
 type TLDRResult struct {
-	VersionA               string            `json:"version_a" yaml:"version_a" toml:"version_a"`
-	VersionB               string            `json:"version_b" yaml:"version_b" toml:"version_b"`
-	VersionADate           string            `json:"version_a_date,omitempty" yaml:"version_a_date,omitempty" toml:"version_a_date,omitempty"`
-	VersionBDate           string            `json:"version_b_date,omitempty" yaml:"version_b_date,omitempty" toml:"version_b_date,omitempty"`
-	SemverBump             string            `json:"semver_bump" yaml:"semver_bump" toml:"semver_bump"`
-	AdditionsLOC           int               `json:"additions_loc" yaml:"additions_loc" toml:"additions_loc"`
-	DeletionsLOC           int               `json:"deletions_loc" yaml:"deletions_loc" toml:"deletions_loc"`
-	SelectorsAdded         []string          `json:"selectors_added" yaml:"selectors_added" toml:"selectors_added"`
-	SelectorsRemoved       []string          `json:"selectors_removed" yaml:"selectors_removed" toml:"selectors_removed"`
-	CSSVariablesAdded      []string          `json:"css_variables_added" yaml:"css_variables_added" toml:"css_variables_added"`
-	CSSVariablesRemoved    []string          `json:"css_variables_removed" yaml:"css_variables_removed" toml:"css_variables_removed"`
-	CSSVariablesChanged    []VariableChange  `json:"css_variables_changed" yaml:"css_variables_changed" toml:"css_variables_changed"`
-	ImportantCount         int               `json:"important_count" yaml:"important_count" toml:"important_count"`
-	AverageSpecificity     float64           `json:"average_specificity" yaml:"average_specificity" toml:"average_specificity"`
-	TotalSelectorsAnalyzed int               `json:"total_selectors_analyzed" yaml:"total_selectors_analyzed" toml:"total_selectors_analyzed"`
-	ColorCounts            map[string]int    `json:"color_counts,omitempty" yaml:"color_counts,omitempty" toml:"color_counts,omitempty"`
+	VersionA               string           `json:"version_a" yaml:"version_a" toml:"version_a"`
+	VersionB               string           `json:"version_b" yaml:"version_b" toml:"version_b"`
+	VersionADate           string           `json:"version_a_date,omitempty" yaml:"version_a_date,omitempty" toml:"version_a_date,omitempty"`
+	VersionBDate           string           `json:"version_b_date,omitempty" yaml:"version_b_date,omitempty" toml:"version_b_date,omitempty"`
+	SemverBump             string           `json:"semver_bump" yaml:"semver_bump" toml:"semver_bump"`
+	AdditionsLOC           int              `json:"additions_loc" yaml:"additions_loc" toml:"additions_loc"`
+	DeletionsLOC           int              `json:"deletions_loc" yaml:"deletions_loc" toml:"deletions_loc"`
+	SelectorsAdded         []string         `json:"selectors_added" yaml:"selectors_added" toml:"selectors_added"`
+	SelectorsRemoved       []string         `json:"selectors_removed" yaml:"selectors_removed" toml:"selectors_removed"`
+	CSSVariablesAdded      []string         `json:"css_variables_added" yaml:"css_variables_added" toml:"css_variables_added"`
+	CSSVariablesRemoved    []string         `json:"css_variables_removed" yaml:"css_variables_removed" toml:"css_variables_removed"`
+	CSSVariablesChanged    []VariableChange `json:"css_variables_changed" yaml:"css_variables_changed" toml:"css_variables_changed"`
+	ImportantCount         int              `json:"important_count" yaml:"important_count" toml:"important_count"`
+	AverageSpecificity     float64          `json:"average_specificity" yaml:"average_specificity" toml:"average_specificity"`
+	TotalSelectorsAnalyzed int              `json:"total_selectors_analyzed" yaml:"total_selectors_analyzed" toml:"total_selectors_analyzed"`
+	ColorCounts            map[string]int   `json:"color_counts,omitempty" yaml:"color_counts,omitempty" toml:"color_counts,omitempty"`
 }
 
 type VariableChange struct {
@@ -38,14 +38,14 @@ type VariableChange struct {
 }
 
 var (
-	cssVarRe      = regexp.MustCompile(`--[\w-]+`)
-	selectorRe    = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
-	importantRe   = regexp.MustCompile(`!important`)
-	hexRe         = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
-	rgbRe         = regexp.MustCompile(`(?i)rgba?\(`)
-	hslRe         = regexp.MustCompile(`(?i)hsla?\(`)
-	oklchRe       = regexp.MustCompile(`(?i)oklch\(`)
-	otherColorRe  = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
+	cssVarRe     = regexp.MustCompile(`--[\w-]+`)
+	selectorRe   = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
+	importantRe  = regexp.MustCompile(`!important`)
+	hexRe        = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
+	rgbRe        = regexp.MustCompile(`(?i)rgba?\(`)
+	hslRe        = regexp.MustCompile(`(?i)hsla?\(`)
+	oklchRe      = regexp.MustCompile(`(?i)oklch\(`)
+	otherColorRe = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
 )
 
 func SemverBump(a, b string) string {
@@ -255,17 +255,17 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := toml.NewEncoder(&buf)
 	v := map[string]any{
-		"version_a":               r.VersionA,
-		"version_b":               r.VersionB,
-		"additions_loc":           r.AdditionsLOC,
-		"deletions_loc":           r.DeletionsLOC,
-		"selectors_added":         r.SelectorsAdded,
-		"selectors_removed":       r.SelectorsRemoved,
-		"css_variables_added":     r.CSSVariablesAdded,
-		"css_variables_removed":   r.CSSVariablesRemoved,
-		"css_variables_changed":   r.CSSVariablesChanged,
-		"important_count":         r.ImportantCount,
-		"average_specificity":     r.AverageSpecificity,
+		"version_a":                r.VersionA,
+		"version_b":                r.VersionB,
+		"additions_loc":            r.AdditionsLOC,
+		"deletions_loc":            r.DeletionsLOC,
+		"selectors_added":          r.SelectorsAdded,
+		"selectors_removed":        r.SelectorsRemoved,
+		"css_variables_added":      r.CSSVariablesAdded,
+		"css_variables_removed":    r.CSSVariablesRemoved,
+		"css_variables_changed":    r.CSSVariablesChanged,
+		"important_count":          r.ImportantCount,
+		"average_specificity":      r.AverageSpecificity,
 		"total_selectors_analyzed": r.TotalSelectorsAnalyzed,
 	}
 	if r.VersionADate != "" {
@@ -288,15 +288,15 @@ func (r *TLDRResult) MarshalTOML() ([]byte, error) {
 
 func (r *TLDRResult) String() string {
 	figlet := []string{
-		"  ____   ____  ____",
-		" / __ \\ / __ \\|  _ \\",
-		"| |  | | |  | | | | |",
-		"| |__| | |__| | |_| |",
-		" \\____/ \\____/|____/",
+		"   ____  __________ ",
+		"  / __ \\/ ____/ __ \\",
+		" / / / / /   / / / /",
+		"/ /_/ / /___/ /_/ / ",
+		"\\____/\\____/_____/  ",
 	}
 
 	var right []string
-	right = append(right, fmt.Sprintf("  %s -> %s", r.VersionA, r.VersionB))
+	right = append(right, fmt.Sprintf("  %s -> %s  (%s)", r.VersionA, r.VersionB, r.SemverBump))
 	right = append(right, fmt.Sprintf("  %d insertions(+), %d deletions(-)", r.AdditionsLOC, r.DeletionsLOC))
 
 	var parts []string

@@ -65,17 +65,23 @@ type diffModel struct {
 
 	tldrResult *core.TLDRResult
 
+	exportFormat string
+	exportAsk    bool
+
 	summaryStyle lipgloss.Style
 	hintStyle    lipgloss.Style
 	content      string
 }
 
 var (
-	cssCommentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")).Italic(true)
-	cssAtRuleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true)
-	cssSelectorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#60a5fa"))
-	cssPropStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#fbbf24"))
-	cssPunctStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ca3af"))
+	cssFgGray      = "\033[38;2;107;114;128m"
+	cssFgPurple    = "\033[38;2;167;139;250;1m"
+	cssFgBlue      = "\033[38;2;96;165;250m"
+	cssFgYellow    = "\033[38;2;251;191;36m"
+	cssFgGray2     = "\033[38;2;156;163;175m"
+	cssItalic      = "\033[3m"
+	cssResetFg     = "\033[39m"
+	cssResetItalic = "\033[23m"
 )
 
 func NewDiffModel(result *models.DiffResult) *diffModel {
@@ -210,9 +216,10 @@ func parseLeadingNum(s string) int {
 }
 
 func (m *diffModel) renderHeader() string {
-	header := fmt.Sprintf("Diff: %s -> %s", m.result.VersionA, m.result.VersionB)
+	bump := core.SemverBump(m.result.VersionA, m.result.VersionB)
+	header := fmt.Sprintf("Diff: %s -> %s  (%s)", m.result.VersionA, m.result.VersionB, bump)
 	summary := m.summaryStyle.Render(
-		fmt.Sprintf(" 1 file changed, %d insertion(s)(+), %d deletion(s)(-)", m.insertions, m.deletions),
+		fmt.Sprintf("1 file changed, %d insertion(s)(+), %d deletion(s)(-)", m.insertions, m.deletions),
 	)
 	s := header + "\n" + summary
 	if m.sideBySide {
@@ -234,10 +241,10 @@ func (m *diffModel) renderColumnHeaders() string {
 	if m.result.VersionB == "" {
 		newLabel = "New"
 	}
-	leftHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.Color("#a78bfa")).Render(oldLabel)
-	rightHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.Color("#a78bfa")).Render(newLabel)
+	leftHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}).Render(oldLabel)
+	rightHdr := lipgloss.NewStyle().Width(half - 2).Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}).Render(newLabel)
 	div := lipgloss.NewStyle().Width(3).Render(" │ ")
-	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("#374151")).Render(
+	sep := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9ca3af", Dark: "#374151"}).Render(
 		strings.Repeat("─", half-2) + "─┼─" + strings.Repeat("─", half-2),
 	)
 	return "\n" + lipgloss.JoinHorizontal(lipgloss.Top, leftHdr, div, rightHdr) + "\n" + sep
@@ -262,16 +269,17 @@ func highlightCSSLine(raw string) string {
 	}
 
 	if strings.HasPrefix(trimmed, "/*") {
-		return cssCommentStyle.Render(line)
+		return cssFgGray + cssItalic + line + cssResetFg + cssResetItalic
 	}
 
 	if strings.HasPrefix(trimmed, "@") {
 		parts := strings.SplitN(trimmed, " ", 2)
-		return cssAtRuleStyle.Render(parts[0])
+		idx := strings.Index(line, parts[0])
+		return line[:idx] + cssFgPurple + parts[0] + cssResetFg + line[idx+len(parts[0]):]
 	}
 
 	if trimmed == "}" || trimmed == "{" {
-		return cssPunctStyle.Render(line)
+		return cssFgGray2 + line + cssResetFg
 	}
 
 	colonIdx := strings.Index(trimmed, ":")
@@ -280,13 +288,12 @@ func highlightCSSLine(raw string) string {
 
 		if !strings.Contains(prop, " ") {
 			propIdx := strings.Index(line, prop)
-			result := line[:propIdx] + cssPropStyle.Render(prop) + line[propIdx+len(prop):]
-			return result
+			return line[:propIdx] + cssFgYellow + prop + cssResetFg + line[propIdx+len(prop):]
 		}
 	}
 
 	if strings.HasSuffix(trimmed, "{") || (!strings.Contains(trimmed, ":") && !strings.Contains(trimmed, ";")) {
-		return cssSelectorStyle.Render(line)
+		return cssFgBlue + line + cssResetFg
 	}
 
 	return line
@@ -315,35 +322,89 @@ func highlightSubstring(plain, query string, style lipgloss.Style) string {
 }
 
 func (m *diffModel) renderUnified(b *strings.Builder) {
-	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
-	currMatch := lipgloss.NewStyle().Background(lipgloss.Color("#b91c1c"))
-	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
-	activeLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
-	dimStyle := lipgloss.NewStyle().Faint(true)
-	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e"))
-	delStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444"))
-	hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true)
-	fileStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6366f1"))
+	hl := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#eab308", Dark: "#854d0e"})
+	currMatch := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#ef4444", Dark: "#b91c1c"})
+	dimColor := lipgloss.AdaptiveColor{Light: "#9ca3af", Dark: "#6b7280"}
+	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
+	activeHunkBg := lipgloss.AdaptiveColor{Light: "#e0e7ff", Dark: "#0f2a3f"}
+	addFg := lipgloss.AdaptiveColor{Light: "#15803d", Dark: "#22c55e"}
+	delFg := lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#ef4444"}
+	hunkFg := lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}
+	fileFg := lipgloss.AdaptiveColor{Light: "#4f46e5", Dark: "#6366f1"}
 
 	activeStart, activeEnd := m.activeRange()
 
 	for i, pl := range m.parsed {
 		var line string
+		atActive := i >= activeStart && i < activeEnd
+		isHunkHeader := pl.kind == lineHunkHeader
+		isFileHeader := pl.kind == lineFileHeader
 
 		switch pl.kind {
 		case lineContext:
-			content := highlightCSSLine(pl.text)
-			line = fmt.Sprintf("%s | %s", lineNumStyle.Render(lineNums(pl)), content)
+			displayText := pl.text
+			if len(displayText) > 0 && displayText[0] == ' ' {
+				displayText = displayText[1:]
+			}
+			content := highlightCSSLine(displayText)
+			nums := lineNums(pl)
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(dimColor).Background(activeHunkBg)
+				line = s.Render(fmt.Sprintf("%s | %s", nums, content))
+			} else {
+				s := lipgloss.NewStyle().Foreground(dimColor)
+				line = s.Render(fmt.Sprintf("%s | %s", nums, content))
+			}
 		case lineAdd:
-			content := highlightCSSLine(pl.text)
-			line = addStyle.Render(fmt.Sprintf("%s |%s", lineNums(pl), content))
+			displayText := pl.text
+			if len(displayText) > 0 && displayText[0] == '+' {
+				displayText = displayText[1:]
+			}
+			content := highlightCSSLine(displayText)
+			nums := lineNums(pl)
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(addFg).Background(activeHunkBg)
+				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
+			} else {
+				s := lipgloss.NewStyle().Foreground(addFg)
+				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
+			}
 		case lineDel:
-			content := highlightCSSLine(pl.text)
-			line = delStyle.Render(fmt.Sprintf("%s |%s", lineNums(pl), content))
+			displayText := pl.text
+			if len(displayText) > 0 && displayText[0] == '-' {
+				displayText = displayText[1:]
+			}
+			content := highlightCSSLine(displayText)
+			nums := lineNums(pl)
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(delFg).Background(activeHunkBg)
+				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
+			} else {
+				s := lipgloss.NewStyle().Foreground(delFg)
+				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
+			}
 		case lineHunkHeader:
-			line = hunkStyle.Render(fmt.Sprintf("  %s", pl.text))
+			text := fmt.Sprintf("  %s", pl.text)
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(hunkFg).Bold(true).Background(activeHunkBg)
+				line = s.Render(text)
+				if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] {
+					s = lipgloss.NewStyle().Foreground(hunkFg).Bold(true).Background(activeLineBg)
+					line = s.Render(text)
+				}
+			} else {
+				s := lipgloss.NewStyle().Foreground(hunkFg).Bold(true)
+				line = s.Render(text)
+			}
 		case lineFileHeader:
-			line = fileStyle.Render(fmt.Sprintf("  %s", pl.text))
+			text := fmt.Sprintf("  %s", pl.text)
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(fileFg).Background(activeHunkBg)
+				line = s.Render(text)
+			} else {
+				s := lipgloss.NewStyle().Foreground(fileFg)
+				line = s.Render(text)
+			}
 		case lineEmpty:
 			line = ""
 		}
@@ -362,11 +423,8 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 		}
 
-		if i >= activeStart && i < activeEnd {
-			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] {
-				line = activeLineStyle.Render(line)
-			}
-		} else if pl.kind != lineEmpty {
+		if !atActive && !isHunkHeader && !isFileHeader && pl.kind != lineEmpty {
+			dimStyle := lipgloss.NewStyle().Faint(true)
 			line = dimStyle.Render(line)
 		}
 
@@ -392,10 +450,12 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 	if half < 20 {
 		half = 20
 	}
-	hl := lipgloss.NewStyle().Background(lipgloss.Color("#854d0e"))
-	currMatch := lipgloss.NewStyle().Background(lipgloss.Color("#b91c1c"))
-	activeLineStyle := lipgloss.NewStyle().Background(lipgloss.Color("#1e3a5f"))
-	dimStyle := lipgloss.NewStyle().Faint(true)
+	hl := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#eab308", Dark: "#854d0e"})
+	currMatch := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#ef4444", Dark: "#b91c1c"})
+	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
+	activeHunkBg := lipgloss.AdaptiveColor{Light: "#e0e7ff", Dark: "#0f2a3f"}
+	hunkFg := lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}
+	fileFg := lipgloss.AdaptiveColor{Light: "#4f46e5", Dark: "#6366f1"}
 	divider := lipgloss.NewStyle().Width(3).Render(" │ ")
 
 	groups := m.groupSideBySide()
@@ -413,18 +473,33 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			newNum = strconv.Itoa(g.newLineNum)
 		}
 
+		atActive := i >= activeStart && i < activeEnd
+		isHunkHeader := g.kind == lineHunkHeader
+
 		switch g.kind {
 		case lineHunkHeader:
-			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#a78bfa")).Bold(true).Render(g.oldContent)
-			if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] && i >= activeStart && i < activeEnd {
-				styled = activeLineStyle.Render(styled)
+			text := g.oldContent
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(hunkFg).Bold(true).Background(activeHunkBg)
+				if len(m.hunkIdx) > 0 && m.currentHunk < len(m.hunkIdx) && i == m.hunkIdx[m.currentHunk] {
+					s = lipgloss.NewStyle().Foreground(hunkFg).Bold(true).Background(activeLineBg)
+				}
+				b.WriteString(s.Render(text))
+			} else {
+				s := lipgloss.NewStyle().Foreground(hunkFg).Bold(true)
+				b.WriteString(s.Render(text))
 			}
-			b.WriteString(styled)
 			b.WriteString("\n")
 			continue
 		case lineFileHeader:
-			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#6366f1")).Render(g.oldContent)
-			b.WriteString(styled)
+			text := g.oldContent
+			if atActive {
+				s := lipgloss.NewStyle().Foreground(fileFg).Background(activeHunkBg)
+				b.WriteString(s.Render(text))
+			} else {
+				s := lipgloss.NewStyle().Foreground(fileFg)
+				b.WriteString(s.Render(text))
+			}
 			b.WriteString("\n")
 			continue
 		case lineEmpty:
@@ -432,13 +507,13 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 			continue
 		}
 
-		oldStyled := renderSideContent(oldContent, oldNum, g.kind == lineDel, half-2)
-		newStyled := renderSideContent(newContent, newNum, g.kind == lineAdd, half-2)
+		oldStyled := renderSideContent(oldContent, oldNum, half-2)
+		newStyled := renderSideContent(newContent, newNum, half-2)
 
-		left := lipgloss.NewStyle().Width(half - 2).Render(oldStyled)
-		right := lipgloss.NewStyle().Width(half - 2).Render(newStyled)
+		oldPadded := lipgloss.NewStyle().Width(half - 2).Render(oldStyled)
+		newPadded := lipgloss.NewStyle().Width(half - 2).Render(newStyled)
 
-		line := lipgloss.JoinHorizontal(lipgloss.Top, left, divider, right)
+		line := lipgloss.JoinHorizontal(lipgloss.Top, oldPadded, divider, newPadded)
 
 		if m.searchQ != "" {
 			plain := stripANSI(line)
@@ -449,12 +524,12 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 				}
 				line = highlightSubstring(plain, m.searchQ, style)
 			}
-		} else if i >= activeStart && i < activeEnd {
-			if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
-				line = activeLineStyle.Render(line)
-			}
-		} else if g.kind != lineEmpty && g.kind != lineHunkHeader && g.kind != lineFileHeader {
-			line = dimStyle.Render(line)
+		} else if atActive && !isHunkHeader {
+			s := lipgloss.NewStyle().Background(activeHunkBg)
+			line = s.Render(line)
+		} else if !atActive && g.kind != lineEmpty && !isHunkHeader {
+			s := lipgloss.NewStyle().Faint(true)
+			line = s.Render(line)
 		}
 
 		b.WriteString(line)
@@ -462,9 +537,16 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 	}
 }
 
-func renderSideContent(content, num string, highlighted bool, width int) string {
+func renderSideContent(content, num string, width int) string {
 	if content == "" {
 		return strings.Repeat(" ", width)
+	}
+	displayText := content
+	if len(displayText) > 0 {
+		first := displayText[0]
+		if first == '+' || first == '-' || first == ' ' {
+			displayText = displayText[1:]
+		}
 	}
 	var prefix string
 	if num != "" {
@@ -472,7 +554,7 @@ func renderSideContent(content, num string, highlighted bool, width int) string 
 	} else {
 		prefix = "    "
 	}
-	text := content
+	text := displayText
 	maxContent := width - len([]rune(prefix)) - 1
 	if maxContent < 1 {
 		maxContent = 1
@@ -492,27 +574,10 @@ func renderSideContent(content, num string, highlighted bool, width int) string 
 			}
 			prefix = padRight("", 4)
 		}
-		styled := wrapped.String()
-		styled = highlightCSSLine(styled)
-		if highlighted {
-			if strings.HasPrefix(content, "+") {
-				styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(styled)
-			} else if strings.HasPrefix(content, "-") {
-				styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(styled)
-			}
-		}
-		return styled
+		return highlightCSSLine(wrapped.String())
 	}
 	styled := prefix + " " + text
-	styled = highlightCSSLine(styled)
-	if highlighted {
-		if strings.HasPrefix(content, "+") {
-			styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Render(styled)
-		} else if strings.HasPrefix(content, "-") {
-			styled = lipgloss.NewStyle().Foreground(lipgloss.Color("#ef4444")).Render(styled)
-		}
-	}
-	return styled
+	return highlightCSSLine(styled)
 }
 
 type sbGroup struct {
@@ -780,6 +845,33 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.exportAsk {
+		switch key {
+		case "t", "j", "y", "T", "J", "Y":
+			switch key {
+			case "t", "T":
+				m.exportFormat = "toml"
+			case "j", "J":
+				m.exportFormat = "json"
+			case "y", "Y":
+				m.exportFormat = "yaml"
+			}
+			m.exportAsk = false
+			m.computeTLDR()
+			return m, tea.Quit
+		case keyEscape:
+			m.exportAsk = false
+			m.count = 0
+			return m, nil
+		case "q", keyCtrlC:
+			m.exportAsk = false
+			m.count = 0
+			return m, tea.Quit
+		}
+		m.count = 0
+		return m, nil
+	}
+
 	if key == "q" || key == keyCtrlC {
 		m.pendingG = false
 		m.pendingZ = false
@@ -803,42 +895,31 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingG = false
 		switch key {
 		case "z":
-			m.vp.GotoTop()
 			if len(m.hunkIdx) > 0 {
 				idx := m.hunkIdx[m.currentHunk]
-				m.vp.GotoTop()
-				for i := 0; i < idx; i++ {
-					m.vp.LineDown(1)
-				}
 				half := m.vp.Height / 2
 				if idx > half {
 					m.vp.YOffset = idx - half
+				} else {
+					m.vp.YOffset = 0
 				}
 			}
 			m.count = 0
 			return m, nil
 		case "t":
-			m.vp.GotoTop()
 			if len(m.hunkIdx) > 0 {
-				idx := m.hunkIdx[m.currentHunk]
-				for i := 0; i < idx; i++ {
-					m.vp.LineDown(1)
-				}
+				m.vp.YOffset = m.hunkIdx[m.currentHunk]
 			}
 			m.count = 0
 			return m, nil
 		case "b":
 			if len(m.hunkIdx) > 0 {
 				idx := m.hunkIdx[m.currentHunk]
-				m.vp.GotoBottom()
-				remaining := m.vp.YOffset
-				m.vp.GotoTop()
-				if idx > remaining {
-					m.vp.YOffset = idx - remaining
+				h := m.vp.Height
+				if idx >= h-1 {
+					m.vp.YOffset = idx - h + 1
 				} else {
-					for i := 0; i < idx; i++ {
-						m.vp.LineDown(1)
-					}
+					m.vp.YOffset = 0
 				}
 			}
 			m.count = 0
@@ -1010,7 +1091,8 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingZ = false
 		m.pendingY = false
 		m.count = 0
-		return m, m.runTLDR()
+		m.exportAsk = true
+		return m, nil
 
 	case "?":
 		m.pendingG = false
@@ -1116,9 +1198,19 @@ func (m *diffModel) runTLDR() tea.Cmd {
 		fname := fmt.Sprintf("ocd-tldr-%s-%s.toml", m.result.VersionA, m.result.VersionB)
 		fname = strings.ReplaceAll(fname, ".", "_")
 		exportTLDR(m.tldrResult, fname, "toml")
-		fmt.Printf("  Exported: %s\n", fname)
+		fmt.Printf("Exported: %s\n", fname)
 		return nil
 	}
+}
+
+func (m *diffModel) computeTLDR() {
+	if m.result == nil {
+		return
+	}
+	m.tldrResult = core.AnalyzeDiff(m.result.Diff)
+	m.tldrResult.VersionA = m.result.VersionA
+	m.tldrResult.VersionB = m.result.VersionB
+	m.tldrResult.SemverBump = core.SemverBump(m.result.VersionA, m.result.VersionB)
 }
 
 func exportTLDR(t *core.TLDRResult, path, format string) {
@@ -1191,10 +1283,7 @@ func (m *diffModel) nextHunk() {
 		return
 	}
 	m.currentHunk = (m.currentHunk + 1) % len(m.hunkIdx)
-	m.vp.GotoTop()
-	for i := 0; i < m.hunkIdx[m.currentHunk]; i++ {
-		m.vp.LineDown(1)
-	}
+	m.vp.YOffset = m.hunkIdx[m.currentHunk]
 	m.render()
 	m.vp.SetContent(m.content)
 }
@@ -1207,10 +1296,7 @@ func (m *diffModel) prevHunk() {
 	if m.currentHunk < 0 {
 		m.currentHunk = len(m.hunkIdx) - 1
 	}
-	m.vp.GotoTop()
-	for i := 0; i < m.hunkIdx[m.currentHunk]; i++ {
-		m.vp.LineDown(1)
-	}
+	m.vp.YOffset = m.hunkIdx[m.currentHunk]
 	m.render()
 	m.vp.SetContent(m.content)
 }
@@ -1240,6 +1326,10 @@ func (m *diffModel) View() string {
 		return fmt.Sprintf("Error: %v", m.result.Error)
 	}
 
+	if m.exportAsk {
+		return m.renderExportPrompt()
+	}
+
 	if m.showHelp {
 		return m.renderHelp()
 	}
@@ -1258,12 +1348,33 @@ func (m *diffModel) View() string {
 	}
 
 	footer := m.hintStyle.Render(
-		fmt.Sprintf("\n%s  {}  j/k  /  o  q  ? help",
+		fmt.Sprintf("\n%s  {}  j/k  /  e  o  q  ? help",
 			hunkInfo,
 		),
 	)
 
 	return header + "\n\n" + m.vp.View() + searchBar + footer
+}
+
+func (m *diffModel) renderExportPrompt() string {
+	style := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}).
+		Padding(1, 2).
+		Foreground(lipgloss.AdaptiveColor{Light: "#1f2937", Dark: "#e5e7eb"})
+	content := "Export TLDR analysis as:\n\n" +
+		"  [T]OML  [J]SON  [Y]AML\n\n" +
+		"  Esc to cancel"
+	box := style.Render(content)
+	width := m.vp.Width + 2
+	if width < 80 {
+		width = 80
+	}
+	pad := (width - lipgloss.Width(box)) / 2
+	if pad < 2 {
+		pad = 2
+	}
+	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n  " + box)
 }
 
 func (m *diffModel) renderHelp() string {
@@ -1275,7 +1386,7 @@ func (m *diffModel) renderHelp() string {
 		"  n/N       Next/prev (hunk or search match)",
 		"  gg/G      Top/bottom of diff",
 		"  zz/zt/zb  Center/top/bottom current hunk",
-		"  e         Export TLDR analysis",
+		"  e         Export TLDR analysis (TOML/JSON/YAML)",
 		"  v         Toggle side-by-side",
 		"  /         Search within diff",
 		"  y         Yank current hunk to clipboard",
@@ -1287,9 +1398,9 @@ func (m *diffModel) renderHelp() string {
 	helpText := strings.Join(helpContent, "\n")
 	helpStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#a78bfa")).
+		BorderForeground(lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}).
 		Padding(1, 2).
-		Foreground(lipgloss.Color("#e5e7eb"))
+		Foreground(lipgloss.AdaptiveColor{Light: "#1f2937", Dark: "#e5e7eb"})
 	box := helpStyle.Render(helpText)
 	width := m.vp.Width + 2
 	if width < 80 {
@@ -1305,6 +1416,18 @@ func (m *diffModel) renderHelp() string {
 func RunDiffViewer(result *models.DiffResult) error {
 	m := NewDiffModel(result)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	final, err := p.Run()
+	if err != nil {
+		return err
+	}
+	dm := final.(*diffModel)
+	if dm.exportFormat != "" && dm.tldrResult != nil {
+		fmt.Print(dm.tldrResult.String())
+		safeA := strings.ReplaceAll(dm.result.VersionA, ".", "_")
+		safeB := strings.ReplaceAll(dm.result.VersionB, ".", "_")
+		fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", safeA, safeB, dm.exportFormat)
+		exportTLDR(dm.tldrResult, fname, dm.exportFormat)
+		fmt.Printf("  Exported: %s\n", fname)
+	}
+	return nil
 }
