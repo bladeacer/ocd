@@ -230,9 +230,7 @@ func (m *diffModel) renderHeader() string {
 
 func (m *diffModel) renderColumnHeaders() string {
 	half := (m.vp.Width - 3) / 2
-	if half < 20 {
-		half = 20
-	}
+	half = max(half, 20)
 	oldLabel := fmt.Sprintf("Old (%s)", m.result.VersionA)
 	newLabel := fmt.Sprintf("New (%s)", m.result.VersionB)
 	if m.result.VersionA == "" {
@@ -321,14 +319,97 @@ func highlightSubstring(plain, query string, style lipgloss.Style) string {
 	return out.String()
 }
 
+// highlightOnCSS applies a search highlight (background only) to a CSS-highlighted
+// ANSI string. The background ANSI code is extracted from the lipgloss style and
+// inserted around each match in the CSS-encoded content, preserving foreground colors.
+func highlightOnCSS(content, plain, query string, style lipgloss.Style) string {
+	if query == "" || !strings.Contains(strings.ToLower(plain), strings.ToLower(query)) {
+		return content
+	}
+	// Extract the background ANSI open from the style (render empty, strip trailing reset)
+	raw := style.Render("")
+	bgOpen := raw
+	// raw is "\033[48;2;...m\033[0m" — strip the final reset (4 bytes)
+	if len(bgOpen) >= 4 && bgOpen[len(bgOpen)-4:] == "\033[0m" {
+		bgOpen = bgOpen[:len(bgOpen)-4]
+	}
+	bgClose := "\033[49m"
+
+	lower := strings.ToLower(plain)
+	q := strings.ToLower(query)
+	var out strings.Builder
+	ci, pi := 0, 0
+
+	for {
+		idx := strings.Index(lower[pi:], q)
+		if idx < 0 {
+			out.WriteString(content[ci:])
+			break
+		}
+		target := pi + idx
+
+		// Advance ci through content to match plain up to target
+		for pi < target {
+			if ci >= len(content) {
+				break
+			}
+			if content[ci] == '\033' {
+				out.WriteByte('\033')
+				ci++
+				for ci < len(content) && content[ci] != 'm' {
+					out.WriteByte(content[ci])
+					ci++
+				}
+				if ci < len(content) {
+					out.WriteByte(content[ci])
+					ci++
+				}
+			} else {
+				out.WriteByte(content[ci])
+				ci++
+				pi++
+			}
+		}
+
+		// Insert search highlight background
+		out.WriteString(bgOpen)
+
+		// Copy matched text
+		for i := 0; i < len(query); i++ {
+			if ci >= len(content) {
+				break
+			}
+			if content[ci] == '\033' {
+				out.WriteByte('\033')
+				ci++
+				for ci < len(content) && content[ci] != 'm' {
+					out.WriteByte(content[ci])
+					ci++
+				}
+				if ci < len(content) {
+					out.WriteByte(content[ci])
+					ci++
+				}
+			} else {
+				out.WriteByte(content[ci])
+				ci++
+				pi++
+			}
+		}
+
+		// Reset background only (preserves CSS foreground)
+		out.WriteString(bgClose)
+	}
+	return out.String()
+}
+
 func (m *diffModel) renderUnified(b *strings.Builder) {
 	hl := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#eab308", Dark: "#854d0e"})
 	currMatch := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#ef4444", Dark: "#b91c1c"})
-	dimColor := lipgloss.AdaptiveColor{Light: "#9ca3af", Dark: "#6b7280"}
-	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
+	addBg := lipgloss.AdaptiveColor{Light: "#dcfce7", Dark: "#0a2e0a"}
+	delBg := lipgloss.AdaptiveColor{Light: "#fee2e2", Dark: "#2e0a0a"}
 	activeHunkBg := lipgloss.AdaptiveColor{Light: "#e0e7ff", Dark: "#0f2a3f"}
-	addFg := lipgloss.AdaptiveColor{Light: "#15803d", Dark: "#22c55e"}
-	delFg := lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#ef4444"}
+	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
 	hunkFg := lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}
 	fileFg := lipgloss.AdaptiveColor{Light: "#4f46e5", Dark: "#6366f1"}
 
@@ -337,8 +418,6 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 	for i, pl := range m.parsed {
 		var line string
 		atActive := i >= activeStart && i < activeEnd
-		isHunkHeader := pl.kind == lineHunkHeader
-		isFileHeader := pl.kind == lineFileHeader
 
 		switch pl.kind {
 		case lineContext:
@@ -348,11 +427,18 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 			content := highlightCSSLine(displayText)
 			nums := lineNums(pl)
+			if m.searchQ != "" && strings.Contains(strings.ToLower(displayText), strings.ToLower(m.searchQ)) {
+				style := hl
+				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+					style = currMatch
+				}
+				content = highlightOnCSS(content, displayText, m.searchQ, style)
+			}
 			if atActive {
-				s := lipgloss.NewStyle().Foreground(dimColor).Background(activeHunkBg)
+				s := lipgloss.NewStyle().Background(activeHunkBg)
 				line = s.Render(fmt.Sprintf("%s | %s", nums, content))
 			} else {
-				s := lipgloss.NewStyle().Foreground(dimColor)
+				s := lipgloss.NewStyle().Faint(true)
 				line = s.Render(fmt.Sprintf("%s | %s", nums, content))
 			}
 		case lineAdd:
@@ -362,11 +448,18 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 			content := highlightCSSLine(displayText)
 			nums := lineNums(pl)
+			if m.searchQ != "" && strings.Contains(strings.ToLower(displayText), strings.ToLower(m.searchQ)) {
+				style := hl
+				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+					style = currMatch
+				}
+				content = highlightOnCSS(content, displayText, m.searchQ, style)
+			}
 			if atActive {
-				s := lipgloss.NewStyle().Foreground(addFg).Background(activeHunkBg)
+				s := lipgloss.NewStyle().Background(addBg)
 				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
 			} else {
-				s := lipgloss.NewStyle().Foreground(addFg)
+				s := lipgloss.NewStyle().Faint(true).Background(addBg)
 				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
 			}
 		case lineDel:
@@ -376,15 +469,29 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 			content := highlightCSSLine(displayText)
 			nums := lineNums(pl)
+			if m.searchQ != "" && strings.Contains(strings.ToLower(displayText), strings.ToLower(m.searchQ)) {
+				style := hl
+				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+					style = currMatch
+				}
+				content = highlightOnCSS(content, displayText, m.searchQ, style)
+			}
 			if atActive {
-				s := lipgloss.NewStyle().Foreground(delFg).Background(activeHunkBg)
+				s := lipgloss.NewStyle().Background(delBg)
 				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
 			} else {
-				s := lipgloss.NewStyle().Foreground(delFg)
+				s := lipgloss.NewStyle().Faint(true).Background(delBg)
 				line = s.Render(fmt.Sprintf("%s |%s%s", nums, string(pl.text[0]), content))
 			}
 		case lineHunkHeader:
 			text := fmt.Sprintf("  %s", pl.text)
+			if m.searchQ != "" && strings.Contains(strings.ToLower(text), strings.ToLower(m.searchQ)) {
+				style := hl
+				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+					style = currMatch
+				}
+				text = highlightSubstring(text, m.searchQ, style)
+			}
 			if atActive {
 				s := lipgloss.NewStyle().Foreground(hunkFg).Bold(true).Background(activeHunkBg)
 				line = s.Render(text)
@@ -398,6 +505,13 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 		case lineFileHeader:
 			text := fmt.Sprintf("  %s", pl.text)
+			if m.searchQ != "" && strings.Contains(strings.ToLower(text), strings.ToLower(m.searchQ)) {
+				style := hl
+				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+					style = currMatch
+				}
+				text = highlightSubstring(text, m.searchQ, style)
+			}
 			if atActive {
 				s := lipgloss.NewStyle().Foreground(fileFg).Background(activeHunkBg)
 				line = s.Render(text)
@@ -407,25 +521,6 @@ func (m *diffModel) renderUnified(b *strings.Builder) {
 			}
 		case lineEmpty:
 			line = ""
-		}
-
-		plain := stripANSI(line)
-
-		if m.searchQ != "" {
-			if strings.Contains(strings.ToLower(plain), strings.ToLower(m.searchQ)) {
-				style := hl
-				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
-					style = currMatch
-				}
-				b.WriteString(highlightSubstring(plain, m.searchQ, style))
-				b.WriteString("\n")
-				continue
-			}
-		}
-
-		if !atActive && !isHunkHeader && !isFileHeader && pl.kind != lineEmpty {
-			dimStyle := lipgloss.NewStyle().Faint(true)
-			line = dimStyle.Render(line)
 		}
 
 		b.WriteString(line)
@@ -447,13 +542,13 @@ func lineNums(pl parsedLine) string {
 
 func (m *diffModel) renderSideBySide(b *strings.Builder) {
 	half := (m.vp.Width - 3) / 2
-	if half < 20 {
-		half = 20
-	}
+	half = max(half, 20)
 	hl := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#eab308", Dark: "#854d0e"})
 	currMatch := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#ef4444", Dark: "#b91c1c"})
-	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
+	addBg := lipgloss.AdaptiveColor{Light: "#dcfce7", Dark: "#0a2e0a"}
+	delBg := lipgloss.AdaptiveColor{Light: "#fee2e2", Dark: "#2e0a0a"}
 	activeHunkBg := lipgloss.AdaptiveColor{Light: "#e0e7ff", Dark: "#0f2a3f"}
+	activeLineBg := lipgloss.AdaptiveColor{Light: "#bfdbfe", Dark: "#1e3a5f"}
 	hunkFg := lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}
 	fileFg := lipgloss.AdaptiveColor{Light: "#4f46e5", Dark: "#6366f1"}
 	divider := lipgloss.NewStyle().Width(3).Render(" │ ")
@@ -474,7 +569,6 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		}
 
 		atActive := i >= activeStart && i < activeEnd
-		isHunkHeader := g.kind == lineHunkHeader
 
 		switch g.kind {
 		case lineHunkHeader:
@@ -510,27 +604,67 @@ func (m *diffModel) renderSideBySide(b *strings.Builder) {
 		oldStyled := renderSideContent(oldContent, oldNum, half-2)
 		newStyled := renderSideContent(newContent, newNum, half-2)
 
-		oldPadded := lipgloss.NewStyle().Width(half - 2).Render(oldStyled)
-		newPadded := lipgloss.NewStyle().Width(half - 2).Render(newStyled)
+		if m.searchQ != "" {
+			oldDisplay := oldContent
+			if len(oldDisplay) > 0 {
+				c := oldDisplay[0]
+				if c == '+' || c == '-' || c == ' ' {
+					oldDisplay = oldDisplay[1:]
+				}
+			}
+			newDisplay := newContent
+			if len(newDisplay) > 0 {
+				c := newDisplay[0]
+				if c == '+' || c == '-' || c == ' ' {
+					newDisplay = newDisplay[1:]
+				}
+			}
+			searchStyle := hl
+			if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
+				searchStyle = currMatch
+			}
+			if m.searchQ != "" && strings.Contains(strings.ToLower(oldDisplay), strings.ToLower(m.searchQ)) {
+				css := highlightCSSLine(oldDisplay)
+				oldStyled = renderSideContentHighlighted(highlightOnCSS(css, oldDisplay, m.searchQ, searchStyle), oldNum, half-2)
+			}
+			if m.searchQ != "" && strings.Contains(strings.ToLower(newDisplay), strings.ToLower(m.searchQ)) {
+				css := highlightCSSLine(newDisplay)
+				newStyled = renderSideContentHighlighted(highlightOnCSS(css, newDisplay, m.searchQ, searchStyle), newNum, half-2)
+			}
+		}
+
+		oldStyle := lipgloss.NewStyle().Width(half - 2)
+		newStyle := lipgloss.NewStyle().Width(half - 2)
+		switch g.kind {
+		case lineDel:
+			if atActive {
+				oldStyle = oldStyle.Background(delBg)
+				newStyle = newStyle.Background(activeHunkBg)
+			} else {
+				oldStyle = oldStyle.Background(delBg).Faint(true)
+				newStyle = newStyle.Faint(true)
+			}
+		case lineAdd:
+			if atActive {
+				oldStyle = oldStyle.Background(activeHunkBg)
+				newStyle = newStyle.Background(addBg)
+			} else {
+				oldStyle = oldStyle.Faint(true)
+				newStyle = newStyle.Background(addBg).Faint(true)
+			}
+		case lineContext:
+			if atActive {
+				oldStyle = oldStyle.Background(activeHunkBg)
+				newStyle = newStyle.Background(activeHunkBg)
+			} else {
+				oldStyle = oldStyle.Faint(true)
+				newStyle = newStyle.Faint(true)
+			}
+		}
+		oldPadded := oldStyle.Render(oldStyled)
+		newPadded := newStyle.Render(newStyled)
 
 		line := lipgloss.JoinHorizontal(lipgloss.Top, oldPadded, divider, newPadded)
-
-		if m.searchQ != "" {
-			plain := stripANSI(line)
-			if strings.Contains(strings.ToLower(plain), strings.ToLower(m.searchQ)) {
-				style := hl
-				if m.searchMatchCurr >= 0 && m.searchMatchCurr < len(m.searchMatchIdxs) && m.searchMatchIdxs[m.searchMatchCurr] == i {
-					style = currMatch
-				}
-				line = highlightSubstring(plain, m.searchQ, style)
-			}
-		} else if atActive && !isHunkHeader {
-			s := lipgloss.NewStyle().Background(activeHunkBg)
-			line = s.Render(line)
-		} else if !atActive && g.kind != lineEmpty && !isHunkHeader {
-			s := lipgloss.NewStyle().Faint(true)
-			line = s.Render(line)
-		}
 
 		b.WriteString(line)
 		b.WriteString("\n")
@@ -556,9 +690,7 @@ func renderSideContent(content, num string, width int) string {
 	}
 	text := displayText
 	maxContent := width - len([]rune(prefix)) - 1
-	if maxContent < 1 {
-		maxContent = 1
-	}
+	maxContent = max(maxContent, 1)
 	if len([]rune(text)) > maxContent {
 		var wrapped strings.Builder
 		runes := []rune(text)
@@ -584,6 +716,55 @@ func renderSideContent(content, num string, width int) string {
 		return wrapped.String()
 	}
 	return prefix + " " + highlightCSSLine(text)
+}
+
+// renderSideContentHighlighted is like renderSideContent but accepts pre-highlighted
+// display text and skips its own CSS highlighting pass.
+func renderSideContentHighlighted(content, num string, width int) string {
+	if content == "" {
+		return strings.Repeat(" ", width)
+	}
+	displayText := content
+	if len(displayText) > 0 {
+		first := displayText[0]
+		if first == '+' || first == '-' || first == ' ' {
+			displayText = displayText[1:]
+		}
+	}
+	var prefix string
+	if num != "" {
+		prefix = padRight(num, 4)
+	} else {
+		prefix = "    "
+	}
+	text := displayText
+	maxContent := width - len([]rune(prefix)) - 1
+	maxContent = max(maxContent, 1)
+	if len([]rune(text)) > maxContent {
+		var wrapped strings.Builder
+		runes := []rune(text)
+		first := true
+		for len(runes) > 0 {
+			chunk := maxContent
+			if chunk > len(runes) {
+				chunk = len(runes)
+			}
+			if first {
+				wrapped.WriteString(prefix)
+				wrapped.WriteString(" ")
+				first = false
+			} else {
+				wrapped.WriteString("     ")
+			}
+			wrapped.WriteString(string(runes[:chunk]))
+			runes = runes[chunk:]
+			if len(runes) > 0 {
+				wrapped.WriteString("\n")
+			}
+		}
+		return wrapped.String()
+	}
+	return prefix + " " + text
 }
 
 type sbGroup struct {
@@ -737,9 +918,7 @@ func (m *diffModel) viewportHeight(totalHeight int) int {
 	if m.sideBySide {
 		h -= 2
 	}
-	if h < 3 {
-		h = 3
-	}
+	h = max(h, 3)
 	return h
 }
 
@@ -960,9 +1139,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		n := m.count
-		if n < 1 {
-			n = 1
-		}
+		n = max(n, 1)
 		for i := 0; i < n; i++ {
 			m.nextHunk()
 		}
@@ -981,9 +1158,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		n := m.count
-		if n < 1 {
-			n = 1
-		}
+		n = max(n, 1)
 		for i := 0; i < n; i++ {
 			m.prevHunk()
 		}
@@ -993,9 +1168,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j", "down":
 		m.pendingG = false
 		n := m.count
-		if n < 1 {
-			n = 1
-		}
+		n = max(n, 1)
 		m.vp.LineDown(n)
 		m.count = 0
 		return m, nil
@@ -1003,9 +1176,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.pendingG = false
 		n := m.count
-		if n < 1 {
-			n = 1
-		}
+		n = max(n, 1)
 		m.vp.LineUp(n)
 		m.count = 0
 		return m, nil
@@ -1374,13 +1545,9 @@ func (m *diffModel) renderExportPrompt() string {
 		"  Esc to cancel"
 	box := style.Render(content)
 	w := m.vp.Width
-	if w < 40 {
-		w = 40
-	}
+	w = max(w, 40)
 	pad := (w - lipgloss.Width(box)) / 2
-	if pad < 0 {
-		pad = 0
-	}
+	pad = max(pad, 0)
 	return lipgloss.NewStyle().PaddingLeft(pad).Render(box)
 }
 
@@ -1409,15 +1576,9 @@ func (m *diffModel) renderHelp() string {
 		Padding(1, 2).
 		Foreground(lipgloss.AdaptiveColor{Light: "#1f2937", Dark: "#e5e7eb"})
 	box := helpStyle.Render(helpText)
-	width := m.vp.Width + 2
-	if width < 80 {
-		width = 80
-	}
-	pad := (width - lipgloss.Width(box)) / 2
-	if pad < 2 {
-		pad = 2
-	}
-	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n  " + box + "\n\n  Press ? or Esc to close help")
+	width := max(m.vp.Width, 80)
+	pad := max((width-lipgloss.Width(box))/2, 2)
+	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n" + box + "\n\nPress ? or Esc to close help")
 }
 
 func RunDiffViewer(result *models.DiffResult) error {

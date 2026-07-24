@@ -351,3 +351,20 @@ func TestAnalyzeDiffVarOnly(t *testing.T) {
 		t.Errorf("CSSVariablesChanged = %v, want []", r.CSSVariablesChanged)
 	}
 }
+
+func TestAnalyzeCSS(t *testing.T) {
+	css := ".foo {\n  color: red;\n  padding: 8px;\n}\n"
+	r := AnalyzeCSS(css)
+	if r == nil {
+		t.Fatal("AnalyzeCSS returned nil")
+	}
+	if r.AdditionsLOC == 0 {
+		t.Errorf("AdditionsLOC = %d, want >0", r.AdditionsLOC)
+	}
+	if r.TotalSelectorsAnalyzed == 0 {
+		t.Error("TotalSelectorsAnalyzed should be >0 for .foo selector")
+	}
+	if r.AverageSpecificity <= 0 {
+		t.Error("expected positive average specificity")
+	}
+}

@@ -26,15 +26,19 @@ TOML, JSON, or YAML.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
 
-			css, err := core.ExtractCSS(version)
+			path, err := core.ExtractCSS(version)
 			if err != nil {
 				return fmt.Errorf("extract %s: %w", version, err)
 			}
+			css, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read app.css for %s: %w", version, err)
+			}
 
-			result := core.AnalyzeCSS(css)
+			result := core.AnalyzeCSS(string(css))
 			result.VersionA = version
 
-			fmt.Print(result.String())
+			fmt.Print(result.StatString())
 
 			exportPath := output
 			if exportPath == "" {
@@ -47,7 +51,7 @@ TOML, JSON, or YAML.`,
 			if err := exportTLDR(result, fullPath, format); err != nil {
 				return fmt.Errorf("export stat: %w", err)
 			}
-			fmt.Printf("Exported: %s\n", fullPath)
+			fmt.Printf("\nExported: %s\n", fullPath)
 			return nil
 		},
 	}

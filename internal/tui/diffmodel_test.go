@@ -1682,3 +1682,68 @@ func TestExportTLDR(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderSideContent(t *testing.T) {
+	empty := renderSideContent("", "", 40)
+	if empty != strings.Repeat(" ", 40) {
+		t.Errorf("empty content should return spaces, got %q", empty)
+	}
+	normal := renderSideContent("  .foo {}", "5", 40)
+	if !strings.Contains(normal, ".foo") {
+		t.Errorf("normal content should contain .foo, got %q", normal)
+	}
+	shortWidth := renderSideContent("+padding: var(--spacing-sm, 8px);", "5", 20)
+	if !strings.Contains(shortWidth, "padding") {
+		t.Errorf("shortWidth content should contain padding, got %q", shortWidth)
+	}
+	if !strings.Contains(shortWidth, "\n") {
+		t.Errorf("shortWidth should wrap, got %q", shortWidth)
+	}
+	noNum := renderSideContent(".bar {}", "", 40)
+	if !strings.Contains(noNum, ".bar") {
+		t.Errorf("noNum should contain .bar, got %q", noNum)
+	}
+}
+
+func TestComputeTLDR(t *testing.T) {
+	diff := `diff --git a/file.css b/file.css
+--- a/file.css
++++ b/file.css
+@@ -1 +1 @@
+-.foo { color: red; }
++.foo { color: blue; }
+`
+	result := &models.DiffResult{
+		Diff:     diff,
+		HasDiff:  true,
+		Error:    nil,
+		VersionA: "0.9.0",
+		VersionB: "1.0.0-rc",
+	}
+	m := &diffModel{result: result}
+	m.build()
+	m.computeTLDR()
+	if m.tldrResult == nil {
+		t.Fatal("computeTLDR should set tldrResult")
+	}
+	if m.tldrResult.VersionA != "0.9.0" {
+		t.Errorf("VersionA = %q, want 0.9.0", m.tldrResult.VersionA)
+	}
+	if m.tldrResult.VersionB != "1.0.0-rc" {
+		t.Errorf("VersionB = %q, want 1.0.0-rc", m.tldrResult.VersionB)
+	}
+	if m.tldrResult.SemverBump != "major" {
+		t.Errorf("SemverBump = %q, want major", m.tldrResult.SemverBump)
+	}
+}
+
+func TestAnalyzeCSS(t *testing.T) {
+	css := `.foo { color: red; padding: 8px; }`
+	result := core.AnalyzeCSS(css)
+	if result == nil {
+		t.Fatal("AnalyzeCSS should return a result")
+	}
+	if result.TotalSelectorsAnalyzed == 0 {
+		t.Errorf("expected selectors, got 0")
+	}
+}

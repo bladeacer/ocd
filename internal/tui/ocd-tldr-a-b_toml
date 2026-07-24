@@ -1,9 +1,0 @@
-additions_loc = 1
-average_specificity = 10.0
-deletions_loc = 0
-important_count = 0
-selectors_added = [".class"]
-semver_bump = "unknown"
-total_selectors_analyzed = 1
-version_a = "a"
-version_b = "b"

@@ -98,7 +98,7 @@ func TestModelFooter(t *testing.T) {
 	if !strings.Contains(plain, "E") {
 		t.Errorf("expected E in footer, got %q", plain)
 	}
-	if !strings.Contains(plain, "m toggle mobile") {
+	if !strings.Contains(plain, "up/down") {
 		t.Errorf("expected key hints in footer, got %q", plain)
 	}
 	if !strings.Contains(plain, "\n") {

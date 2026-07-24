@@ -76,30 +76,21 @@ func (m *model) renderHelpCentered() string {
 	}
 	helpText := strings.Join(helpContent, "\n")
 	box := helpBorderStyle.Render(helpText)
-	width := m.width
-	if width < 80 {
-		width = 80
-	}
-	pad := (width - lipgloss.Width(box)) / 2
-	if pad < 2 {
-		pad = 2
-	}
+	pad := max((max(m.width, 80)-lipgloss.Width(box))/2, 2)
 	padded := lipgloss.NewStyle().PaddingLeft(pad).Render(box)
 	return "\n\n\n" + padded
 }
 
 func (m *model) footerView() string {
-	parts := []string{
+	keys := helpStyle.Render("  M  E  F  S  up/down  /  enter  q  ? help")
+
+	info := fmt.Sprintf("%s %s %s %s",
 		fmtStatus("M", m.showMobile),
 		fmtStatus("E", m.showEarlyAccess),
 		fmtStatus("F", m.foundOnly),
 		fmtStatus("S", m.sortByPriority),
-	}
-
-	keys := helpStyle.Render("up/down/left/right nav  / search  enter select  m toggle mobile  e toggle early  f toggle docker  s toggle sort  q quit  ? help")
-
-	info := fmt.Sprintf("[%s]", strings.Join(parts, " "))
-	return "\n\n" + info + "\n" + keys
+	)
+	return "\n" + info + keys
 }
 
 func fmtStatus(label string, active bool) string {

@@ -29,6 +29,7 @@ type TLDRResult struct {
 	AverageSpecificity     float64          `json:"average_specificity" yaml:"average_specificity" toml:"average_specificity"`
 	TotalSelectorsAnalyzed int              `json:"total_selectors_analyzed" yaml:"total_selectors_analyzed" toml:"total_selectors_analyzed"`
 	ColorCounts            map[string]int   `json:"color_counts,omitempty" yaml:"color_counts,omitempty" toml:"color_counts,omitempty"`
+	Specificities          []float64        `json:"-" yaml:"-" toml:"-"`
 }
 
 type VariableChange struct {
@@ -187,6 +188,7 @@ func (r *TLDRResult) analyzeLine(content, prefix string, currentSelector *string
 		r.TotalSelectorsAnalyzed++
 		sp := specificity(sel)
 		r.AverageSpecificity = (r.AverageSpecificity*float64(r.TotalSelectorsAnalyzed-1) + sp) / float64(r.TotalSelectorsAnalyzed)
+		r.Specificities = append(r.Specificities, sp)
 		if prefix == "+" {
 			r.SelectorsAdded = append(r.SelectorsAdded, sel)
 		} else if prefix == "-" {
@@ -257,6 +259,42 @@ func specificity(sel string) float64 {
 		}
 	}
 	return score
+}
+
+func specificityStats(vals []float64) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	sorted := make([]float64, len(vals))
+	copy(sorted, vals)
+	sort.Float64s(sorted)
+
+	sum := 0.0
+	freq := make(map[float64]int)
+	for _, v := range sorted {
+		sum += v
+		freq[v]++
+	}
+	mean := sum / float64(len(sorted))
+
+	median := 0.0
+	if len(sorted)%2 == 1 {
+		median = sorted[len(sorted)/2]
+	} else {
+		mid := len(sorted) / 2
+		median = (sorted[mid-1] + sorted[mid]) / 2
+	}
+
+	modeVal := sorted[0]
+	maxFreq := 0
+	for v, c := range freq {
+		if c > maxFreq {
+			maxFreq = c
+			modeVal = v
+		}
+	}
+
+	return fmt.Sprintf("specificity mean %.1f  median %.1f  mode %.1f", mean, median, modeVal)
 }
 
 func (r *TLDRResult) MarshalJSON() ([]byte, error) {
@@ -337,7 +375,86 @@ func (r *TLDRResult) String() string {
 		parts = append(parts, fmt.Sprintf("%d !important", r.ImportantCount))
 	}
 	if r.TotalSelectorsAnalyzed > 0 {
-		parts = append(parts, fmt.Sprintf("specificity %.1f", r.AverageSpecificity))
+		parts = append(parts, specificityStats(r.Specificities))
+	}
+	if len(r.ColorCounts) > 0 {
+		colors := make([]string, 0, len(r.ColorCounts))
+		for c := range r.ColorCounts {
+			colors = append(colors, c)
+		}
+		sort.Strings(colors)
+		var colorParts []string
+		for _, c := range colors {
+			colorParts = append(colorParts, fmt.Sprintf("%s:%d", c, r.ColorCounts[c]))
+		}
+		parts = append(parts, strings.Join(colorParts, " "))
+	}
+	for len(parts) > 0 {
+		n := 4
+		if n > len(parts) {
+			n = len(parts)
+		}
+		right = append(right, "  "+strings.Join(parts[:n], ", "))
+		parts = parts[n:]
+	}
+
+	maxLines := len(figlet)
+	if len(right) > maxLines {
+		maxLines = len(right)
+	}
+	var out strings.Builder
+	for i := 0; i < maxLines; i++ {
+		l := ""
+		if i < len(figlet) {
+			l = figlet[i]
+		}
+		r := ""
+		if i < len(right) {
+			r = right[i]
+		}
+		out.WriteString(l)
+		if r != "" {
+			out.WriteString("  ")
+			out.WriteString(r)
+		}
+		out.WriteString("\n")
+	}
+	return out.String()
+}
+
+func (r *TLDRResult) StatString() string {
+	figlet := []string{
+		"   ____  __________ ",
+		"  / __ \\/ ____/ __ \\",
+		" / / / / /   / / / /",
+		"/ /_/ / /___/ /_/ / ",
+		"\\____/\\____/_____/  ",
+	}
+
+	var right []string
+	right = append(right, fmt.Sprintf("  %s", r.VersionA))
+
+	var parts []string
+	if n := len(r.SelectorsAdded); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d selectors", n))
+	}
+	if n := len(r.SelectorsRemoved); n > 0 {
+		parts = append(parts, fmt.Sprintf("-%d selectors", n))
+	}
+	if n := len(r.CSSVariablesAdded); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d variables", n))
+	}
+	if n := len(r.CSSVariablesRemoved); n > 0 {
+		parts = append(parts, fmt.Sprintf("-%d variables", n))
+	}
+	if n := len(r.CSSVariablesChanged); n > 0 {
+		parts = append(parts, fmt.Sprintf("~%d changed", n))
+	}
+	if r.ImportantCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d !important", r.ImportantCount))
+	}
+	if r.TotalSelectorsAnalyzed > 0 {
+		parts = append(parts, specificityStats(r.Specificities))
 	}
 	if len(r.ColorCounts) > 0 {
 		colors := make([]string, 0, len(r.ColorCounts))

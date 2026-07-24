@@ -70,6 +70,17 @@ ocd diff --tldr 1.12.6 1.12.7  # TLDR analysis (CSS heuristics) + TOML export
 ocd diff --tldr --tldr-format json 1.12.6 1.12.7  # TLDR as JSON
 ```
 
+### Version stats
+
+```bash
+ocd stat 1.12.7                      # show CSS stats + export to TOML
+ocd stat 1.12.7 --format json        # export as JSON
+ocd stat 1.12.7 --output ~/reports   # custom output directory
+```
+
+Analyze a single version's `app.css` for selector count, CSS variables,
+color usage, and specificity — useful for tracking CSS bloat over time.
+
 The diff viewer opens with scrollable, colorized output. Active hunk lines
 are highlighted with a blue background.
 
@@ -121,6 +132,7 @@ ocd clean
 | `interact` | TUI browser with async loading, search, filters, CSS status column |
 | `extract <ver>` | Download + extract `app.css` from GitHub releases |
 | `diff [a] [b]` | Interactive picker or direct diff with colored viewer |
+| `stat <ver>` | CSS composition stats (selectors, variables, colors) for a single version |
 | `clean` | Wipe `.obsidian_cache/` metadata and extracted CSS |
 
 ## How it works
