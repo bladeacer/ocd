@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hexops/gotextdiff"
@@ -12,11 +13,9 @@ import (
 	"github.com/bladeacer/ocd/internal/models"
 )
 
-var diffCSSDir = ".obsidian_cache/css"
-
 func DiffCSS(versionA, versionB string) *models.DiffResult {
-	pathA := diffCSSDir + "/" + versionA + "/app.css"
-	pathB := diffCSSDir + "/" + versionB + "/app.css"
+	pathA := filepath.Join(CSSDir, versionA, "app.css")
+	pathB := filepath.Join(CSSDir, versionB, "app.css")
 
 	contentA, err := os.ReadFile(pathA)
 	if err != nil {

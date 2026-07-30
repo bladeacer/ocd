@@ -34,9 +34,9 @@ func TestExtractCSSCached(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	orig := extractCSSDir
-	extractCSSDir = dir
-	defer func() { extractCSSDir = orig }()
+	orig := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = orig }()
 
 	path, err := ExtractCSS("1.0.0")
 	if err != nil {
@@ -87,9 +87,9 @@ func buildMinimalASARGz(t *testing.T) []byte {
 }
 
 func TestExtractCSSDirCreation(t *testing.T) {
-	orig := extractCSSDir
-	extractCSSDir = t.TempDir()
-	defer func() { extractCSSDir = orig }()
+	orig := CSSDir
+	CSSDir = t.TempDir()
+	defer func() { CSSDir = orig }()
 
 	origURL := asarReleaseURL
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,9 +106,9 @@ func TestExtractCSSDirCreation(t *testing.T) {
 }
 
 func TestExtractCSSHTTPError(t *testing.T) {
-	orig := extractCSSDir
-	extractCSSDir = t.TempDir()
-	defer func() { extractCSSDir = orig }()
+	orig := CSSDir
+	CSSDir = t.TempDir()
+	defer func() { CSSDir = orig }()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -129,9 +129,9 @@ func TestExtractCSSHTTPError(t *testing.T) {
 }
 
 func TestExtractCSSBadGzip(t *testing.T) {
-	orig := extractCSSDir
-	extractCSSDir = t.TempDir()
-	defer func() { extractCSSDir = orig }()
+	orig := CSSDir
+	CSSDir = t.TempDir()
+	defer func() { CSSDir = orig }()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("not gzip data"))
@@ -149,9 +149,9 @@ func TestExtractCSSBadGzip(t *testing.T) {
 }
 
 func TestExtractCSSDecompressError(t *testing.T) {
-	orig := extractCSSDir
-	extractCSSDir = t.TempDir()
-	defer func() { extractCSSDir = orig }()
+	orig := CSSDir
+	CSSDir = t.TempDir()
+	defer func() { CSSDir = orig }()
 
 	origClient := httpClient
 	origURL := asarReleaseURL

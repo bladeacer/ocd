@@ -21,7 +21,10 @@ func NewInteractCmd() *cobra.Command {
 filter by type (desktop/mobile), search, and select a version
 for CSS extraction and diffing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cache.New(0)
+			c, err := cache.New(0)
+			if err != nil {
+				return fmt.Errorf("cache init: %w", err)
+			}
 			f := sources.NewFetcher(c)
 
 			app := tui.New(f, forceRefresh)

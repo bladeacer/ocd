@@ -22,23 +22,6 @@ func expandPath(p string) string {
 	return os.ExpandEnv(p)
 }
 
-func exportTLDR(t *core.TLDRResult, path, format string) error {
-	var data []byte
-	var err error
-	switch format {
-	case "json":
-		data, err = t.MarshalJSON()
-	case "yaml":
-		data, err = t.MarshalYAML()
-	default:
-		data, err = t.MarshalTOML()
-	}
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
 func printTLDR(t *core.TLDRResult, exportPath string) {
 	fmt.Println(t.String())
 	if exportPath != "" {
@@ -81,10 +64,12 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 				versionA = args[0]
 				versionB = args[1]
 			} else if interactive || len(args) == 0 {
-				c := cache.New(0)
+				c, err := cache.New(0)
+				if err != nil {
+					return fmt.Errorf("cache init: %w", err)
+				}
 				f := sources.NewFetcher(c)
 
-				var err error
 				versionA, versionB, err = tui.PickVersions(f, forceRefresh)
 				if err != nil {
 					return fmt.Errorf("picker: %w", err)
@@ -118,11 +103,16 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 				if tldrOutput != "" {
 					exportPath = expandPath(tldrOutput)
 				} else {
-					exportPath, _ = os.Getwd()
+					wd, wdErr := os.Getwd()
+					if wdErr != nil {
+						exportPath = "."
+					} else {
+						exportPath = wd
+					}
 				}
 				fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", versionA, versionB, tldrFormat)
 				fullPath := filepath.Join(exportPath, fname)
-				if err := exportTLDR(tldrResult, fullPath, tldrFormat); err != nil {
+				if err := core.ExportTLDR(tldrResult, fullPath, tldrFormat); err != nil {
 					return fmt.Errorf("export tldr: %w", err)
 				}
 				printTLDR(tldrResult, fullPath)

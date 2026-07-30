@@ -7,17 +7,60 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-var extractCSSDir = ".obsidian_cache/css"
+var CSSDir = ".obsidian_cache/css"
 
 var asarReleaseURL = "https://github.com/obsidianmd/obsidian-releases/releases/download/v%s/obsidian-%s.asar.gz"
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+func ImportFile(srcPath, label string) (string, error) {
+	destDir := filepath.Join(CSSDir, label)
+	destFile := filepath.Join(destDir, "app.css")
+
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return "", fmt.Errorf("create cache dir: %w", err)
+	}
+
+	ext := strings.ToLower(filepath.Ext(srcPath))
+	switch ext {
+	case ".asar":
+		if err := extractAppCSSFromASAR(srcPath, destFile); err != nil {
+			return "", fmt.Errorf("extract asar %q: %w", srcPath, err)
+		}
+	case ".css":
+		if err := copyFile(srcPath, destFile); err != nil {
+			return "", fmt.Errorf("copy css %q: %w", srcPath, err)
+		}
+	default:
+		return "", fmt.Errorf("unsupported file extension %q (expected .asar or .css)", ext)
+	}
+
+	return destFile, nil
+}
+
+func copyFile(src, dst string) error {
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	d, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	_, err = io.Copy(d, s)
+	return err
+}
+
 func ExtractCSS(version string) (string, error) {
-	destDir := filepath.Join(extractCSSDir, version)
+	destDir := filepath.Join(CSSDir, version)
 	destFile := filepath.Join(destDir, "app.css")
 
 	if _, err := os.Stat(destFile); err == nil {

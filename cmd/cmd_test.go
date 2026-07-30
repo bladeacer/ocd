@@ -45,20 +45,23 @@ func TestNewInteractCmd(t *testing.T) {
 
 func TestNewExtractCmd(t *testing.T) {
 	c := NewExtractCmd()
-	if c.Use != "extract <version>" {
+	if c.Use != "extract <version|label>" {
 		t.Errorf("unexpected Use: %s", c.Use)
 	}
-	if c.Short != "Download and extract app.css from an Obsidian release" {
+	if c.Short != "Download and extract app.css from an Obsidian release, or import from a local file" {
 		t.Errorf("unexpected Short: %s", c.Short)
+	}
+	if c.Flag("from-file") == nil {
+		t.Fatal("expected --from-file flag")
 	}
 }
 
 func TestNewCleanCmd(t *testing.T) {
 	c := NewCleanCmd()
-	if c.Use != "clean" {
+	if c.Use != "clean [label]" {
 		t.Errorf("unexpected Use: %s", c.Use)
 	}
-	if c.Short != "Wipe all cached metadata and extracted CSS files" {
+	if c.Short != "Wipe cached metadata and extracted CSS files" {
 		t.Errorf("unexpected Short: %s", c.Short)
 	}
 }

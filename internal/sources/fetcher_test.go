@@ -11,7 +11,10 @@ import (
 )
 
 func TestNewFetcher(t *testing.T) {
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	f := NewFetcher(c)
 	if f.rss == nil {
 		t.Error("expected rss source")
@@ -25,7 +28,10 @@ func TestNewFetcher(t *testing.T) {
 }
 
 func TestFetchAllCached(t *testing.T) {
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	rssData := []models.RSSVersion{
 		{Version: "1.12.7", Type: models.Desktop, Date: "2024-01-01", Electron: "28.0.0"},
 	}
@@ -93,7 +99,10 @@ func TestFetchAllWithServers(t *testing.T) {
 		electronRawURL = origElectron
 	}()
 
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	f := NewFetcher(c)
 	result := f.FetchAll(true)
 	if result.Error != nil {
@@ -105,7 +114,10 @@ func TestFetchAllWithServers(t *testing.T) {
 }
 
 func TestFetchAllCancel(t *testing.T) {
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	f := NewFetcher(c)
 	result := f.FetchAll(false)
 	if result.Error == nil {

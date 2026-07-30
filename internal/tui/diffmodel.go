@@ -1328,7 +1328,7 @@ func (m *diffModel) yankHunk() tea.Cmd {
 		}
 		text := m.yankText(start, end)
 		if err := clipboard.WriteAll(text); err != nil {
-			return nil
+			fmt.Fprintf(os.Stderr, "clipboard error: %v\n", err)
 		}
 		return nil
 	}
@@ -1348,7 +1348,7 @@ func (m *diffModel) yankLineContent() tea.Cmd {
 				}
 			}
 			if err := clipboard.WriteAll(text); err != nil {
-				return nil
+				fmt.Fprintf(os.Stderr, "clipboard error: %v\n", err)
 			}
 		}
 		return nil
@@ -1368,7 +1368,7 @@ func (m *diffModel) runTLDR() tea.Cmd {
 		}
 		fmt.Print(m.tldrResult.String())
 		fname := fmt.Sprintf("ocd-tldr-%s-%s.toml", m.result.VersionA, m.result.VersionB)
-		if err := exportTLDR(m.tldrResult, fname, "toml"); err != nil {
+		if err := core.ExportTLDR(m.tldrResult, fname, "toml"); err != nil {
 			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 		} else {
 			fmt.Printf("Exported: %s\n", fname)
@@ -1387,28 +1387,11 @@ func (m *diffModel) computeTLDR() {
 	m.tldrResult.SemverBump = core.SemverBump(m.result.VersionA, m.result.VersionB)
 }
 
-func exportTLDR(t *core.TLDRResult, path, format string) error {
-	var data []byte
-	var err error
-	switch format {
-	case "json":
-		data, err = t.MarshalJSON()
-	case "yaml":
-		data, err = t.MarshalYAML()
-	default:
-		data, err = t.MarshalTOML()
-	}
-	if err != nil {
-		return fmt.Errorf("marshal %s: %w", format, err)
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
 func (m *diffModel) yankAll() tea.Cmd {
 	return func() tea.Msg {
 		text := m.yankText(0, len(m.parsed))
 		if err := clipboard.WriteAll(text); err != nil {
-			return nil
+			fmt.Fprintf(os.Stderr, "clipboard error: %v\n", err)
 		}
 		return nil
 	}
@@ -1584,11 +1567,14 @@ func RunDiffViewer(result *models.DiffResult) error {
 	if err != nil {
 		return err
 	}
-	dm := final.(*diffModel)
+	dm, ok := final.(*diffModel)
+	if !ok {
+		return fmt.Errorf("unexpected model type: %T", final)
+	}
 	if dm.exportFormat != "" && dm.tldrResult != nil {
 		fmt.Print(dm.tldrResult.String())
 		fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", dm.result.VersionA, dm.result.VersionB, dm.exportFormat)
-		if err := exportTLDR(dm.tldrResult, fname, dm.exportFormat); err != nil {
+		if err := core.ExportTLDR(dm.tldrResult, fname, dm.exportFormat); err != nil {
 			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 		} else {
 			fmt.Printf("Exported: %s\n", fname)

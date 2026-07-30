@@ -373,7 +373,10 @@ func TestPickerCSSExtracted(t *testing.T) {
 }
 
 func TestNewPicker(t *testing.T) {
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	f := sources.NewFetcher(c)
 	m := NewPicker(f, false)
 	if m == nil {
@@ -388,7 +391,10 @@ func TestNewPicker(t *testing.T) {
 }
 
 func TestPickerInit(t *testing.T) {
-	c := cache.New(0)
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatalf("cache.New: %v", err)
+	}
 	f := sources.NewFetcher(c)
 	m := NewPicker(f, false)
 	cmd := m.Init()

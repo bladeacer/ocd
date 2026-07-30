@@ -1676,7 +1676,7 @@ func TestExportTLDR(t *testing.T) {
 	}
 	for _, tc := range tests {
 		path := dir + "/test" + tc.ext
-		if err := exportTLDR(r, path, tc.format); err != nil {
+		if err := core.ExportTLDR(r, path, tc.format); err != nil {
 			t.Fatalf("exportTLDR(%s): %v", tc.format, err)
 		}
 		if _, err := os.Stat(path); os.IsNotExist(err) {

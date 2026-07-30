@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -39,14 +40,15 @@ type VariableChange struct {
 }
 
 var (
-	cssVarRe     = regexp.MustCompile(`--[\w-]+`)
-	selectorRe   = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
-	importantRe  = regexp.MustCompile(`!important`)
-	hexRe        = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
-	rgbRe        = regexp.MustCompile(`(?i)rgba?\(`)
-	hslRe        = regexp.MustCompile(`(?i)hsla?\(`)
-	oklchRe      = regexp.MustCompile(`(?i)oklch\(`)
-	otherColorRe = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
+	cssVarRe       = regexp.MustCompile(`--[\w-]+`)
+	selectorRe     = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
+	importantRe    = regexp.MustCompile(`!important`)
+	hexRe          = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
+	rgbRe          = regexp.MustCompile(`(?i)rgba?\(`)
+	hslRe          = regexp.MustCompile(`(?i)hsla?\(`)
+	oklchRe        = regexp.MustCompile(`(?i)oklch\(`)
+	otherColorRe   = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
+	varSelectorRe  = regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
 )
 
 func SemverBump(a, b string) string {
@@ -121,7 +123,6 @@ func AnalyzeCSS(css string) *TLDRResult {
 		return r
 	}
 	var currentSelector string
-	varSelectorRe := regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
 	addedVars := map[string]string{}
 	for _, line := range strings.Split(css, "\n") {
 		r.AdditionsLOC++
@@ -141,7 +142,6 @@ func AnalyzeDiff(diff string) *TLDRResult {
 	}
 
 	var currentSelector string
-	varSelectorRe := regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
 	addedVars := map[string]string{}
 	removedVars := map[string]string{}
 
@@ -320,6 +320,23 @@ func (r *TLDRResult) MarshalJSON() ([]byte, error) {
 func (r *TLDRResult) MarshalYAML() ([]byte, error) {
 	type Alias TLDRResult
 	return yaml.Marshal((*Alias)(r))
+}
+
+func ExportTLDR(t *TLDRResult, path, format string) error {
+	var data []byte
+	var err error
+	switch format {
+	case "json":
+		data, err = t.MarshalJSON()
+	case "yaml":
+		data, err = t.MarshalYAML()
+	default:
+		data, err = t.MarshalTOML()
+	}
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", format, err)
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 func (r *TLDRResult) MarshalTOML() ([]byte, error) {

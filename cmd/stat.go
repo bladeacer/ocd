@@ -42,13 +42,18 @@ TOML, JSON, or YAML.`,
 
 			exportPath := output
 			if exportPath == "" {
-				exportPath, _ = os.Getwd()
+				wd, wdErr := os.Getwd()
+				if wdErr != nil {
+					exportPath = "."
+				} else {
+					exportPath = wd
+				}
 			} else {
 				exportPath = expandPath(exportPath)
 			}
 			fname := fmt.Sprintf("ocd-stat-%s.%s", version, format)
 			fullPath := filepath.Join(exportPath, fname)
-			if err := exportTLDR(result, fullPath, format); err != nil {
+			if err := core.ExportTLDR(result, fullPath, format); err != nil {
 				return fmt.Errorf("export stat: %w", err)
 			}
 			fmt.Printf("\nExported: %s\n", fullPath)

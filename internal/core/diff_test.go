@@ -24,9 +24,9 @@ func TestDiffCSS(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("1.0.0", "1.0.1")
 	if result.Error != nil {
@@ -50,9 +50,9 @@ func TestDiffCSSNoDiff(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("1.0.0", "1.0.0")
 	if result.Error != nil {
@@ -65,9 +65,9 @@ func TestDiffCSSNoDiff(t *testing.T) {
 
 func TestDiffCSSMissingFile(t *testing.T) {
 	dir := t.TempDir()
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("nonexistent", "1.0.0")
 	if result.Error == nil {
@@ -92,9 +92,9 @@ func TestDiffCSSVersionFields(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("v1", "v2")
 	if result.Error != nil {
@@ -125,9 +125,9 @@ func TestDiffCSSWithDiffContent(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("a", "b")
 	if result.Error != nil {
@@ -154,9 +154,9 @@ func TestDiffCSSIdentical(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	origDir := diffCSSDir
-	diffCSSDir = dir
-	defer func() { diffCSSDir = origDir }()
+	origDir := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = origDir }()
 
 	result := DiffCSS("v", "v")
 	if result.Error != nil {

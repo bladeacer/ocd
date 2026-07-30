@@ -111,7 +111,10 @@ func TestStoreStruct(t *testing.T) {
 	CacheDir = t.TempDir()
 	defer func() { CacheDir = origDir }()
 
-	s := New(0)
+	s, err := New(0)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 	if s.ttl != 0 {
 		t.Errorf("expected ttl=0, got %v", s.ttl)
 	}

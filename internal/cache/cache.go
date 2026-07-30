@@ -25,15 +25,15 @@ type Store struct {
 	ttl time.Duration
 }
 
-func New(ttl time.Duration) *Store {
+func New(ttl time.Duration) (*Store, error) {
 	s := &Store{
 		dir: CacheDir,
 		ttl: ttl,
 	}
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
-		panic(err)
+		return nil, err
 	}
-	return s
+	return s, nil
 }
 
 func (s *Store) path(name string) string {
@@ -99,7 +99,9 @@ func (s *Store) Clear() error {
 		return err
 	}
 	for _, name := range names {
-		os.Remove(filepath.Join(s.dir, name))
+		if err := os.Remove(filepath.Join(s.dir, name)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
