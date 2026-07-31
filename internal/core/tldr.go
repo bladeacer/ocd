@@ -40,15 +40,15 @@ type VariableChange struct {
 }
 
 var (
-	cssVarRe       = regexp.MustCompile(`--[\w-]+`)
-	selectorRe     = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
-	importantRe    = regexp.MustCompile(`!important`)
-	hexRe          = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
-	rgbRe          = regexp.MustCompile(`(?i)rgba?\(`)
-	hslRe          = regexp.MustCompile(`(?i)hsla?\(`)
-	oklchRe        = regexp.MustCompile(`(?i)oklch\(`)
-	otherColorRe   = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
-	varSelectorRe  = regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
+	cssVarRe      = regexp.MustCompile(`--[\w-]+`)
+	selectorRe    = regexp.MustCompile(`^\s*([.#][\w-]+(?:\s*[+>~\s][.#][\w-]+)*)\s*\{`)
+	importantRe   = regexp.MustCompile(`!important`)
+	hexRe         = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}`)
+	rgbRe         = regexp.MustCompile(`(?i)rgba?\(`)
+	hslRe         = regexp.MustCompile(`(?i)hsla?\(`)
+	oklchRe       = regexp.MustCompile(`(?i)oklch\(`)
+	otherColorRe  = regexp.MustCompile(`(?i)(?:oklab\(|lab\(|lch\(|hwb\(|color\()`)
+	varSelectorRe = regexp.MustCompile(`^\s*(--[\w-]+)\s*:\s*(.+?);`)
 )
 
 func SemverBump(a, b string) string {
