@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/models"
 )
@@ -15,7 +16,8 @@ import (
 const searchQHello = "hello"
 
 func TestMain(m *testing.M) {
-	os.Setenv("CLICOLOR_FORCE", "1")
+	_ = os.Setenv("CLICOLOR_FORCE", "1")
+	defer func() { _ = os.Unsetenv("CLICOLOR_FORCE") }()
 	os.Exit(m.Run())
 }
 
@@ -129,7 +131,7 @@ func TestDiffModelBuildNoDiff(t *testing.T) {
 		Diff:     "",
 		HasDiff:  false,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	if m.content != "" {
 		t.Errorf("expected empty content for no-diff, got %q", m.content)
@@ -142,7 +144,7 @@ func TestDiffModelBuildError(t *testing.T) {
 		VersionB: "1.0.1",
 		Error:    errTest("file not found"),
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	if !strings.Contains(m.content, "Error: file not found") {
 		t.Errorf("expected error in content, got %q", m.content)
@@ -160,7 +162,7 @@ func TestDiffModelBuildWithDiff(t *testing.T) {
 		Diff:     "--- v1.0.0\n+++ v1.0.1\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	if m.content == "" {
 		t.Fatal("expected non-empty content")
@@ -183,7 +185,7 @@ func TestFormatLine(t *testing.T) {
 		VersionB: "1.0.1",
 		Diff:     "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
 		HasDiff:  true,
-	})
+	}, config.DiffKeys{})
 	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
 	line := m.formatLine(pl, &numStyle)
 	if !strings.Contains(line, "hello") {
@@ -197,7 +199,7 @@ func TestDiffModelYankText(t *testing.T) {
 		VersionB: "1.0.1",
 		Diff:     "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
 		HasDiff:  true,
-	})
+	}, config.DiffKeys{})
 	m.build()
 	text := m.yankText(0, len(m.parsed))
 	if !strings.Contains(text, "old") || !strings.Contains(text, "new") {
@@ -212,7 +214,7 @@ func TestGroupSideBySide(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	groups := m.groupSideBySide()
 	if len(groups) == 0 {
@@ -243,7 +245,7 @@ func TestDiffModelWindowSizeMsg(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 	_, cmd := m.Update(msg)
 	if !m.ready {
@@ -261,7 +263,7 @@ func TestDiffModelToggleSideBySide(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.sideBySide {
@@ -286,7 +288,7 @@ func TestDiffModelQuitKey(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
@@ -302,7 +304,7 @@ func TestDiffModelSearchMode(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -323,7 +325,7 @@ func TestDiffModelViewBeforeReady(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	v := m.View()
 	if !strings.Contains(v, "Loading diff view...") {
 		t.Errorf("expected 'Loading diff view...' in view, got %q", v)
@@ -337,7 +339,7 @@ func TestDiffModelViewAfterReady(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	v := m.View()
 	if !strings.Contains(v, "Diff: 1.0.0 -> 1.0.1") {
@@ -352,7 +354,7 @@ func TestDiffModelHunkNavigation(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.currentHunk != 0 {
@@ -377,7 +379,7 @@ func TestDiffModelGotoTop(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
@@ -404,7 +406,7 @@ func TestDiffModelOpenInEditor(t *testing.T) {
 		Diff:     "test diff",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.openInEditor()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -418,7 +420,7 @@ func TestDiffModelYankHunk(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	cmd := m.yankHunk()
 	if cmd == nil {
@@ -433,7 +435,7 @@ func TestDiffModelYankAll(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.yankAll()
 	if cmd == nil {
 		t.Fatal("expected non-nil command for yankAll")
@@ -447,7 +449,7 @@ func TestDiffModelNextPrevHunkEmpty(t *testing.T) {
 		Diff:     "no hunks here",
 		HasDiff:  false,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	m.nextHunk()
 	m.prevHunk()
@@ -460,7 +462,7 @@ func TestDiffModelRefreshViewport(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.vp.Width = 100
 	m.vp.Height = 50
 	m.ready = true
@@ -472,7 +474,7 @@ func TestDiffModelRefreshViewport(t *testing.T) {
 }
 
 func TestDiffModelInit(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{})
+	m := NewDiffModel(&models.DiffResult{}, config.DiffKeys{})
 	cmd := m.Init()
 	if cmd != nil {
 		t.Error("expected nil command from Init")
@@ -481,7 +483,7 @@ func TestDiffModelInit(t *testing.T) {
 
 func TestDiffModelHandleSearchKeyEscape(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -502,7 +504,7 @@ func TestDiffModelHandleSearchKeyEnter(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -522,7 +524,7 @@ func TestDiffModelHandleSearchKeyTab(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -538,7 +540,7 @@ func TestDiffModelHandleSearchKeyTab(t *testing.T) {
 
 func TestDiffModelHandleSearchKeyBackspace(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -552,7 +554,7 @@ func TestDiffModelHandleSearchKeyBackspace(t *testing.T) {
 
 func TestDiffModelHandleSearchKeyCharacter(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -564,7 +566,7 @@ func TestDiffModelHandleSearchKeyCharacter(t *testing.T) {
 
 func TestDiffModelHandleSearchKeyNonCharacter(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchMode = true
 	m.searchIn.Focus()
@@ -575,7 +577,7 @@ func TestDiffModelHandleSearchKeyNonCharacter(t *testing.T) {
 }
 
 func TestDiffModelScrollToMatch(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "first"},
 		{text: "second"},
@@ -593,7 +595,7 @@ func TestDiffModelScrollToMatch(t *testing.T) {
 }
 
 func TestDiffModelScrollToMatchNoMatch(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "first"},
 		{text: "second"},
@@ -608,7 +610,7 @@ func TestDiffModelScrollToMatchNoMatch(t *testing.T) {
 }
 
 func TestDiffModelRenderUnified(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "--- a/file.go", kind: lineFileHeader},
 		{text: "+++ b/file.go", kind: lineFileHeader},
@@ -639,7 +641,7 @@ func TestDiffModelRenderUnified(t *testing.T) {
 }
 
 func TestDiffModelRenderUnifiedWithSearch(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: " hello", kind: lineContext, oldLineNum: 1, newLineNum: 1},
 		{text: "-world", kind: lineDel, oldLineNum: 2, newLineNum: 0},
@@ -655,7 +657,7 @@ func TestDiffModelRenderUnifiedWithSearch(t *testing.T) {
 }
 
 func TestDiffModelRenderSideBySideDefaultWithSearch(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "--- a", kind: lineFileHeader},
 		{text: "+++ b", kind: lineFileHeader},
@@ -676,7 +678,7 @@ func TestDiffModelRenderSideBySideDefaultWithSearch(t *testing.T) {
 
 func TestDiffModelOpenInEditorWithEmptyDiff(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b", Diff: "", HasDiff: false}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.openInEditor()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -684,7 +686,7 @@ func TestDiffModelOpenInEditorWithEmptyDiff(t *testing.T) {
 }
 
 func TestDiffModelYankHunkNoHunks(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	cmd := m.yankHunk()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -696,7 +698,7 @@ func TestDiffModelYankHunkNoHunks(t *testing.T) {
 }
 
 func TestDiffModelYankAllNoContent(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b", HasDiff: false})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b", HasDiff: false}, config.DiffKeys{})
 	cmd := m.yankAll()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -713,7 +715,7 @@ func TestDiffModelPrevHunkAtFirst(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.currentHunk = 0
 	m.prevHunk()
@@ -728,7 +730,7 @@ func TestDiffModelHandleNormalKeyY(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
@@ -746,7 +748,7 @@ func TestDiffModelYankHunkCmd(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	cmd := m.yankHunk()
 	if cmd == nil {
@@ -764,7 +766,7 @@ func TestDiffModelYankAllCmd(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	cmd := m.yankAll()
 	if cmd == nil {
@@ -782,7 +784,7 @@ func TestDiffModelHandleNormalKeyCtrlU(t *testing.T) {
 		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyCtrlD})
@@ -802,7 +804,7 @@ func TestDiffModelHandleNormalKeyCtrlD(t *testing.T) {
 		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyCtrlD})
@@ -817,7 +819,7 @@ func TestDiffModelHandleNormalKeyGG(t *testing.T) {
 		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyCtrlD})
@@ -845,7 +847,7 @@ func TestDiffModelHandleNormalKeyG(t *testing.T) {
 		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
@@ -863,7 +865,7 @@ func TestDiffModelHandleNormalKeyNHunkNav(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.searchQ = "something"
 
@@ -883,7 +885,7 @@ func TestDiffModelHandleNormalKeyO(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
@@ -898,7 +900,7 @@ func TestDiffModelHandleNormalKeySlash(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.searchMode {
@@ -916,7 +918,7 @@ func TestDiffModelHandleNormalKeyV(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.sideBySide {
@@ -934,7 +936,7 @@ func TestDiffModelHandleNormalKeyYUpper(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
@@ -949,7 +951,7 @@ func TestDiffModelViewEmpty(t *testing.T) {
 		VersionB: "b",
 		HasDiff:  false,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	v := m.View()
 	if !strings.Contains(v, "No differences found.") {
@@ -958,7 +960,7 @@ func TestDiffModelViewEmpty(t *testing.T) {
 }
 
 func TestDiffModelRenderUnifiedFileHeader(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "--- a/foo.go", kind: lineFileHeader},
 		{text: "+++ b/foo.go", kind: lineFileHeader},
@@ -972,7 +974,7 @@ func TestDiffModelRenderUnifiedFileHeader(t *testing.T) {
 }
 
 func TestDiffModelScrollToMatchAtEnd(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "first"},
 		{text: "second"},
@@ -991,7 +993,7 @@ func TestDiffModelScrollToMatchAtEnd(t *testing.T) {
 }
 
 func TestDiffModelScrollToMatchEmptyQuery(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "first"},
 	}
@@ -1003,7 +1005,7 @@ func TestDiffModelScrollToMatchEmptyQuery(t *testing.T) {
 }
 
 func TestDiffModelScrollToMatchEmptyParsed(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.searchQ = "something"
 	m.scrollToMatch()
 	if m.vp.YOffset != 0 {
@@ -1018,7 +1020,7 @@ func TestRenderColumnHeaders(t *testing.T) {
 		Diff:     "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff:  true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.sideBySide = true
 	m.vp.Width = 100
 	result := m.renderHeader()
@@ -1094,7 +1096,7 @@ func TestDiffModelViewWithSideBySide(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	v := m.View()
@@ -1109,7 +1111,7 @@ func TestDiffModelHandleNormalKeyCurlyBrace(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n@@ -20,3 +20,3 @@\n p\n-q\n+r\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.currentHunk != 0 {
@@ -1133,7 +1135,7 @@ func TestDiffModelHandleNormalKeyCountMotion(t *testing.T) {
 		Diff:    "--- a\n+++ b\n" + strings.Repeat("@@ -1,2 +1,2 @@\n context\n-old\n+new\n", 30),
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
 
 	y0 := m.vp.YOffset
@@ -1158,7 +1160,7 @@ func TestDiffModelHandleNormalKeySingleHunk(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n@@ -20,3 +20,3 @@\n p\n-q\n+r\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.currentHunk != 0 {
@@ -1181,7 +1183,7 @@ func TestDiffModelHandleNormalKeyZZ(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
@@ -1201,7 +1203,7 @@ func TestDiffModelHandleNormalKeyZT(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}})
@@ -1216,7 +1218,7 @@ func TestDiffModelHandleNormalKeyZT(t *testing.T) {
 }
 
 func TestDiffModelViewportHeightSideBySide(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.sideBySide = true
 	h := m.viewportHeight(50)
 	want := 50 - 5 - 2
@@ -1227,7 +1229,7 @@ func TestDiffModelViewportHeightSideBySide(t *testing.T) {
 
 func TestFormatLineBlank(t *testing.T) {
 	pl := parsedLine{text: "", kind: lineEmpty}
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280"))
 	line := m.formatLine(pl, &numStyle)
 	if line != "" {
@@ -1241,7 +1243,7 @@ func TestDiffModelYankLineContent(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	cmd := m.yankLineContent()
 	if cmd == nil {
@@ -1250,7 +1252,7 @@ func TestDiffModelYankLineContent(t *testing.T) {
 }
 
 func TestDiffModelYankLineContentNoHunks(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	cmd := m.yankLineContent()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -1267,7 +1269,7 @@ func TestDiffModelYYMotion(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
@@ -1294,7 +1296,7 @@ func TestDiffModelHelpToggle(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	if m.showHelp {
@@ -1313,7 +1315,7 @@ func TestDiffModelHelpToggle(t *testing.T) {
 }
 
 func TestDiffModelRenderHelp(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	help := m.renderHelp()
 	if help == "" {
 		t.Error("expected non-empty help text")
@@ -1329,7 +1331,7 @@ func TestDiffModelSearchMatchNavigation(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n hello\n-world\n+hello\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	m.searchQ = searchQHello
@@ -1366,7 +1368,7 @@ func TestDiffModelNSearchNoFallback(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
 	m.searchQ = "nonexistent"
@@ -1393,7 +1395,7 @@ func TestDiffModelActiveRange(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 
 	start, end := m.activeRange()
@@ -1406,7 +1408,7 @@ func TestDiffModelActiveRange(t *testing.T) {
 }
 
 func TestDiffModelActiveRangeEmpty(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	start, end := m.activeRange()
 	if start != 0 || end != 0 {
 		t.Errorf("expected (0,0) for empty hunks, got (%d,%d)", start, end)
@@ -1415,7 +1417,7 @@ func TestDiffModelActiveRangeEmpty(t *testing.T) {
 
 func TestDiffModelBuildSearchMatches(t *testing.T) {
 	r := &models.DiffResult{VersionA: "a", VersionB: "b"}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "hello world"},
 		{text: "goodbye"},
@@ -1429,7 +1431,7 @@ func TestDiffModelBuildSearchMatches(t *testing.T) {
 }
 
 func TestDiffModelBuildSearchMatchesEmptyQuery(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.parsed = []parsedLine{
 		{text: "hello"},
 	}
@@ -1446,7 +1448,7 @@ func TestDiffModelViewShowsHelp(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.showHelp = true
 	v := m.View()
@@ -1461,10 +1463,10 @@ func TestDiffModelViewFooterKeys(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	v := m.View()
-	if !strings.Contains(v, "{}") {
+	if !strings.Contains(v, "{") || !strings.Contains(v, "}") {
 		t.Errorf("expected {} in footer, got: %s", v)
 	}
 	if !strings.Contains(v, "? help") {
@@ -1478,7 +1480,7 @@ func TestDiffModelYankLineContentExtractsDescription(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@ some description\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.build()
 	cmd := m.yankLineContent()
 	if cmd == nil {
@@ -1493,7 +1495,7 @@ func TestDiffModelRunTLDR(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n+.class { color: red }\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.runTLDR()
 	if cmd == nil {
 		t.Fatal("expected non-nil command for runTLDR")
@@ -1510,7 +1512,7 @@ func TestDiffModelRunTLDRCached(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1 +1 @@\n+.class { color: red }\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd1 := m.runTLDR()
 	if cmd1 == nil {
 		t.Fatal("expected non-nil command for first runTLDR")
@@ -1523,7 +1525,7 @@ func TestDiffModelRunTLDRCached(t *testing.T) {
 }
 
 func TestDiffModelRunTLDRNilResult(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{})
+	m := NewDiffModel(&models.DiffResult{}, config.DiffKeys{})
 	cmd := m.runTLDR()
 	if cmd != nil {
 		t.Log("runTLDR returned a command with nil result")
@@ -1536,7 +1538,7 @@ func TestDiffModelRenderHelpCentered(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	help := m.renderHelp()
 	if !strings.Contains(help, "Diff Viewer Help") {
@@ -1550,7 +1552,7 @@ func TestDiffModelNextHunkWithRender(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	if m.currentHunk != 0 {
 		t.Fatalf("expected hunk 0, got %d", m.currentHunk)
@@ -1570,7 +1572,7 @@ func TestDiffModelPrevHunkWithRender(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n@@ -10,3 +10,3 @@\n x\n-y\n+z\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.currentHunk = 0
 	m.prevHunk()
@@ -1589,7 +1591,7 @@ func TestDiffModelOpenInEditorDelta(t *testing.T) {
 		Diff:    "test diff content",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.openInEditor()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -1604,7 +1606,7 @@ func TestDiffModelOpenInEditorLess(t *testing.T) {
 		Diff:    "test diff content",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	cmd := m.openInEditor()
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
@@ -1647,7 +1649,7 @@ func TestDiffModelEKey(t *testing.T) {
 		Diff:    "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n",
 		HasDiff: true,
 	}
-	m := NewDiffModel(r)
+	m := NewDiffModel(r, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	_, cmd := m.handleNormalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
 	if cmd != nil {
@@ -1664,7 +1666,7 @@ func TestExportTLDR(t *testing.T) {
 		VersionB: "1.1.0",
 	}
 	dir, _ := os.MkdirTemp("", "ocd-test-*")
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	tests := []struct {
 		format string
@@ -1751,7 +1753,7 @@ func TestAnalyzeCSS(t *testing.T) {
 }
 
 func TestDiffModelRenderExportPrompt(t *testing.T) {
-	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"}, config.DiffKeys{})
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 	m.exportAsk = true
 	prompt := m.renderExportPrompt()

@@ -101,6 +101,19 @@ directory when no output directory is configured via `--output` flag or
 the corresponding `*_dir` config key. Use `output_dir` in config as a
 global fallback.
 
+### Diff Viewer Keybinds
+
+The `ocd diff` TUI viewer has configurable keybindings exposed via
+`diff_keys` in `.ocd.toml`. Defaults are `{`/`h` for prev hunk,
+`}`/`l` for next hunk, `j`/`k` for scroll, etc. See `docs/CONFIG.md`
+for the full `diff_keys` reference.
+
+### Linting
+
+`make lint` runs `golangci-lint`. The `.golangci.yml` uses `version: 2`
+and disables the strict linters (`errcheck`, `staticcheck`, `unused`)
+that produce many findings on legacy code patterns.
+
 ### Changelogs
 
 Historical changelogs live at `docs/changelogs/`. Each version has its own

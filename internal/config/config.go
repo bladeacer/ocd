@@ -20,10 +20,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
+
+// DiffKeys holds the keybind configuration for the diff viewer.
+type DiffKeys struct {
+	// PrevHunk contains the keys to navigate to the previous hunk.
+	PrevHunk []string `toml:"prev_hunk"`
+	// NextHunk contains the keys to navigate to the next hunk.
+	NextHunk []string `toml:"next_hunk"`
+	// ScrollDown contains the keys to scroll down.
+	ScrollDown []string `toml:"scroll_down"`
+	// ScrollUp contains the keys to scroll up.
+	ScrollUp []string `toml:"scroll_up"`
+	// ToggleSideBySide is the key to toggle side-by-side view.
+	ToggleSideBySide string `toml:"toggle_side_by_side"`
+	// Quit contains the keys to quit the diff viewer.
+	Quit []string `toml:"quit"`
+	// Help is the key to toggle the help overlay.
+	Help string `toml:"help"`
+	// Export is the key to export the diff as TLDR.
+	Export string `toml:"export"`
+	// NextSearch is the key to go to the next search match.
+	NextSearch string `toml:"next_search"`
+	// PrevSearch is the key to go to the previous search match.
+	PrevSearch string `toml:"prev_search"`
+	// ScrollToHunk is the key to scroll to the current hunk.
+	ScrollToHunk string `toml:"scroll_to_hunk"`
+	// ScrollToTopOfHunk is the key to scroll to the top of the current hunk.
+	ScrollToTopOfHunk string `toml:"scroll_to_top_of_hunk"`
+	// ScrollToBottomOfHunk is the key to scroll to the bottom of the current hunk.
+	ScrollToBottomOfHunk string `toml:"scroll_to_bottom_of_hunk"`
+}
 
 // Config holds the user-overridable defaults for ocd commands.
 //
@@ -36,6 +67,9 @@ type Config struct {
 	TLDRDir    string `toml:"tldr_dir,omitempty"`
 	Pick       *bool  `toml:"pick,omitempty"`
 	Refresh    *bool  `toml:"refresh,omitempty"`
+
+	// Diff keybind overrides.
+	DiffKeys DiffKeys `toml:"diff_keys,omitempty"`
 
 	// Stat command defaults.
 	StatFormat string `toml:"stat_format,omitempty"`
@@ -133,6 +167,9 @@ func mergeInto(dst, src *Config) {
 		v := *src.Refresh
 		dst.Refresh = &v
 	}
+	if !reflect.DeepEqual(src.DiffKeys, DiffKeys{}) {
+		dst.DiffKeys = src.DiffKeys
+	}
 	if src.StatFormat != "" {
 		dst.StatFormat = src.StatFormat
 	}
@@ -169,6 +206,9 @@ func (c *Config) String() string {
 	}
 	if c.Refresh != nil {
 		fmt.Fprintf(&b, " refresh=%v", *c.Refresh)
+	}
+	if !reflect.DeepEqual(c.DiffKeys, DiffKeys{}) {
+		fmt.Fprintf(&b, " diff_keys=%+v", c.DiffKeys)
 	}
 	if c.StatFormat != "" {
 		fmt.Fprintf(&b, " stat_format=%q", c.StatFormat)

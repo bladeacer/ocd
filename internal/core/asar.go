@@ -33,7 +33,7 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("open asar: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	raw := make([]byte, 12)
 	if _, err := io.ReadFull(f, raw); err != nil {
@@ -74,7 +74,7 @@ func extractAppCSSFromASAR(asarPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("create output: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	section := io.NewSectionReader(f, dataOffset+offset, int64(entry.Size))
 	if _, err := io.Copy(out, section); err != nil {

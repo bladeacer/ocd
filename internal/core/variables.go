@@ -104,11 +104,11 @@ func CompareVariables(targetVersion, themePath string, targetVars, themeVars []C
 // VariableReportString renders the report for stdout.
 func (r *VariableReport) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Variable check: target v%s vs theme %s\n", r.TargetVersion, r.ThemePath))
-	b.WriteString(fmt.Sprintf("  target variables: %d\n", len(r.TargetVars)))
-	b.WriteString(fmt.Sprintf("  theme variables:   %d\n", len(r.ThemeVars)))
-	b.WriteString(fmt.Sprintf("  missing:           %d\n", len(r.Missing)))
-	b.WriteString(fmt.Sprintf("  extra:             %d\n", len(r.Extra)))
+	fmt.Fprintf(&b, "Variable check: target v%s vs theme %s\n", r.TargetVersion, r.ThemePath)
+	fmt.Fprintf(&b, "  target variables: %d\n", len(r.TargetVars))
+	fmt.Fprintf(&b, "  theme variables:   %d\n", len(r.ThemeVars))
+	fmt.Fprintf(&b, "  missing:           %d\n", len(r.Missing))
+	fmt.Fprintf(&b, "  extra:             %d\n", len(r.Extra))
 	if len(r.Missing) > 0 {
 		b.WriteString("\nMissing from theme (present in target):\n")
 		for _, name := range r.Missing {

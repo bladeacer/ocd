@@ -20,7 +20,7 @@ func TestBuildMinimalASARGzIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gzip.NewReader: %v", err)
 	}
-	r.Close()
+	_ = r.Close()
 }
 
 func TestExtractCSSCached(t *testing.T) {
@@ -82,7 +82,7 @@ func buildMinimalASARGz(t *testing.T) []byte {
 	if _, err := gz.Write(asarData); err != nil {
 		t.Fatalf("gzip.Write: %v", err)
 	}
-	gz.Close()
+	_ = gz.Close()
 	return []byte(buf.String())
 }
 
@@ -161,7 +161,7 @@ func TestExtractCSSDecompressError(t *testing.T) {
 	var buf strings.Builder
 	gz := gzip.NewWriter(&buf)
 	_, _ = gz.Write([]byte("test"))
-	gz.Close()
+	_ = gz.Close()
 	gzipped := []byte(buf.String())
 	gzipped[len(gzipped)-1] ^= 0xFF
 

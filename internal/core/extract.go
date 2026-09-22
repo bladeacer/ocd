@@ -47,13 +47,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	d, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 
 	_, err = io.Copy(d, s)
 	return err
@@ -77,7 +77,7 @@ func ExtractCSS(version string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("download asar.gz for v%s: %w", version, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return "", fmt.Errorf("no asar release for v%s (not found on GitHub)", version)
@@ -90,20 +90,20 @@ func ExtractCSS(version string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decompress asar.gz for v%s: %w", version, err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	tmpAsar, err := os.CreateTemp("", "obsidian-*.asar")
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := tmpAsar.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
-	if _, err := io.Copy(tmpAsar, gzReader); err != nil {
-		tmpAsar.Close()
-		return "", fmt.Errorf("write asar for v%s: %w", version, err)
-	}
-	tmpAsar.Close()
+		if _, err := io.Copy(tmpAsar, gzReader); err != nil {
+			_ = tmpAsar.Close()
+			return "", fmt.Errorf("write asar for v%s: %w", version, err)
+		}
+		_ = tmpAsar.Close()
 
 	if err := extractAppCSSFromASAR(tmpPath, destFile); err != nil {
 		return "", fmt.Errorf("extract app.css for v%s: %w", version, err)

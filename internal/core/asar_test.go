@@ -39,7 +39,7 @@ func writeASAR(t *testing.T, files []asarFile) string {
 	if err != nil {
 		t.Fatalf("create asar: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Write(make([]byte, 12)); err != nil {
 		t.Fatalf("write padding: %v", err)
@@ -157,7 +157,7 @@ func TestExtractAppCSSFromASARTruncated(t *testing.T) {
 		t.Fatalf("create asar: %v", err)
 	}
 	_, _ = f.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
-	f.Close()
+	_ = f.Close()
 
 	destPath := filepath.Join(dir, "app.css")
 	err = extractAppCSSFromASAR(asarPath, destPath)

@@ -30,3 +30,19 @@ check_dir = "~/reports"
 
 # Common output directory fallback for all commands
 output_dir = "~/reports"
+
+# diff keybind overrides
+[diff_keys]
+prev_hunk = ["{", "h"]
+next_hunk = ["}", "l"]
+scroll_down = ["j", "down"]
+scroll_up = ["k", "up"]
+toggle_side_by_side = "v"
+quit = ["q"]
+help = "?"
+export = "e"
+next_search = "n"
+prev_search = "N"
+scroll_to_hunk = "z"
+scroll_to_top_of_hunk = "t"
+scroll_to_bottom_of_hunk = "b"

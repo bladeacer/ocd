@@ -192,9 +192,10 @@ func (r *TLDRResult) analyzeLine(content, prefix string, currentSelector *string
 		sp := specificity(sel)
 		r.AverageSpecificity = (r.AverageSpecificity*float64(r.TotalSelectorsAnalyzed-1) + sp) / float64(r.TotalSelectorsAnalyzed)
 		r.Specificities = append(r.Specificities, sp)
-		if prefix == "+" {
+		switch prefix {
+		case "+":
 			r.SelectorsAdded = append(r.SelectorsAdded, sel)
-		} else if prefix == "-" {
+		case "-":
 			r.SelectorsRemoved = append(r.SelectorsRemoved, sel)
 		}
 	}
@@ -202,9 +203,10 @@ func (r *TLDRResult) analyzeLine(content, prefix string, currentSelector *string
 	if matches := cssVarRe.FindString(content); matches != "" {
 		if isVarDefinition(content) {
 			val := extractVarValue(content, varSelectorRe)
-			if prefix == "+" {
+			switch prefix {
+			case "+":
 				addedVars[matches] = val
-			} else if prefix == "-" {
+			case "-":
 				removedVars[matches] = val
 			}
 		}

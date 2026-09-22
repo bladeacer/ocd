@@ -6,16 +6,6 @@ import (
 	"testing"
 )
 
-func writeTempConfig(t *testing.T, content string) string {
-	t.Helper()
-	dir := t.TempDir()
-	p := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(p, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 func TestResolveNoFiles(t *testing.T) {
 	cfg, err := ResolveIn(func() (string, error) {
 		return t.TempDir(), nil
@@ -50,8 +40,8 @@ check_dir = "~/check"
 	}
 
 	orig := os.Getenv("XDG_CONFIG_HOME")
-	defer os.Setenv("XDG_CONFIG_HOME", orig)
-	os.Setenv("XDG_CONFIG_HOME", filepath.Dir(cfgDir))
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Dir(cfgDir))
 
 	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
 	if err != nil {
@@ -112,8 +102,8 @@ tldr_dir = "~/local"
 	}
 
 	orig := os.Getenv("XDG_CONFIG_HOME")
-	defer os.Setenv("XDG_CONFIG_HOME", orig)
-	os.Setenv("XDG_CONFIG_HOME", filepath.Dir(globalDir))
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Dir(globalDir))
 
 	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
 	if err != nil {
@@ -149,11 +139,11 @@ func TestResolveXDGHomeFallback(t *testing.T) {
 	origXDG := os.Getenv("XDG_CONFIG_HOME")
 	origHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", origXDG)
-		os.Setenv("HOME", origHome)
+		_ = os.Setenv("XDG_CONFIG_HOME", origXDG)
+		_ = os.Setenv("HOME", origHome)
 	}()
-	os.Setenv("XDG_CONFIG_HOME", "")
-	os.Setenv("HOME", home)
+	_ = os.Setenv("XDG_CONFIG_HOME", "")
+	_ = os.Setenv("HOME", home)
 
 	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
 	if err != nil {
@@ -167,8 +157,8 @@ func TestResolveXDGHomeFallback(t *testing.T) {
 func TestResolveBadGlobal(t *testing.T) {
 	wd := t.TempDir()
 	orig := os.Getenv("XDG_CONFIG_HOME")
-	defer os.Setenv("XDG_CONFIG_HOME", orig)
-	os.Setenv("XDG_CONFIG_HOME", "/nonexistent-dir-ocd-test")
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+	_ = os.Setenv("XDG_CONFIG_HOME", "/nonexistent-dir-ocd-test")
 
 	_, err := ResolveIn(func() (string, error) { return wd, nil })
 	if err != nil {
@@ -184,6 +174,74 @@ func TestConfigString(t *testing.T) {
 	if s == "" {
 		t.Error("expected non-empty String()")
 	}
+	if !contains(s, "tldr") {
+		t.Errorf("expected String() to contain tldr, got %s", s)
+	}
+}
+
+func TestDiffKeysString(t *testing.T) {
+	keys := DiffKeys{
+		PrevHunk:             []string{"{", "h"},
+		NextHunk:             []string{"}", "l"},
+		ScrollDown:           []string{"j", "down"},
+		ScrollUp:             []string{"k", "up"},
+		ToggleSideBySide:     "v",
+		Quit:                 []string{"q"},
+		Help:                 "?",
+		Export:               "e",
+		NextSearch:           "n",
+		PrevSearch:           "N",
+		ScrollToHunk:         "z",
+		ScrollToTopOfHunk:    "t",
+		ScrollToBottomOfHunk: "b",
+	}
+	cfg := &Config{DiffKeys: keys}
+	s := cfg.String()
+	if !contains(s, "diff_keys={") {
+		t.Errorf("expected String() to contain diff_keys, got %s", s)
+	}
+	if !contains(s, "PrevHunk") {
+		t.Errorf("expected String() to contain PrevHunk, got %s", s)
+	}
+}
+
+func TestDiffKeysMerge(t *testing.T) {
+	dst := &Config{}
+	src := &Config{
+		DiffKeys: DiffKeys{
+			PrevHunk: []string{"a"},
+			NextHunk: []string{"b"},
+		},
+	}
+	mergeInto(dst, src)
+	if len(dst.DiffKeys.PrevHunk) == 0 || dst.DiffKeys.PrevHunk[0] != "a" {
+		t.Errorf("expected PrevHunk to be merged, got %v", dst.DiffKeys.PrevHunk)
+	}
+	if len(dst.DiffKeys.NextHunk) == 0 || dst.DiffKeys.NextHunk[0] != "b" {
+		t.Errorf("expected NextHunk to be merged, got %v", dst.DiffKeys.NextHunk)
+	}
+}
+
+func TestDiffKeysEmptyNotMerged(t *testing.T) {
+	dst := &Config{DiffKeys: DiffKeys{PrevHunk: []string{"{"}}}
+	src := &Config{}
+	mergeInto(dst, src)
+	if len(dst.DiffKeys.PrevHunk) == 0 || dst.DiffKeys.PrevHunk[0] != "{" {
+		t.Error("expected empty DiffKeys not to override existing values")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstr(s, substr))
+}
+
+func findSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func boolPtr(b bool) *bool { return &b }

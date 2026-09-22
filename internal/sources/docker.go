@@ -46,16 +46,16 @@ func (d *DockerHub) Fetch() ([]models.DockerTag, error) {
 			return nil, fmt.Errorf("docker hub request: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("docker hub api status: %d", resp.StatusCode)
 		}
 
 		var page dockerTagResponse
 		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("docker hub decode: %w", err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		for _, result := range page.Results {
 			if noisePattern.MatchString(result.Name) {

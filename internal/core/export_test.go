@@ -82,8 +82,8 @@ func TestExpandDir(t *testing.T) {
 	}
 
 	// Test env var expansion.
-	os.Setenv("OCD_TEST_DIR", "/tmp/ocd-test")
-	defer os.Unsetenv("OCD_TEST_DIR")
+	_ = os.Setenv("OCD_TEST_DIR", "/tmp/ocd-test")
+	defer func() { _ = os.Unsetenv("OCD_TEST_DIR") }()
 	result = expandDir("$OCD_TEST_DIR")
 	if result != "/tmp/ocd-test" {
 		t.Errorf("expandDir with env var = %q, want /tmp/ocd-test", result)

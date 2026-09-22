@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/models"
 )
@@ -71,6 +72,8 @@ type diffModel struct {
 	summaryStyle lipgloss.Style
 	hintStyle    lipgloss.Style
 	content      string
+
+	keybinds map[string][]string
 }
 
 var (
@@ -84,18 +87,90 @@ var (
 	cssResetItalic = "\033[23m"
 )
 
-func NewDiffModel(result *models.DiffResult) *diffModel {
+func NewDiffModel(result *models.DiffResult, keybinds config.DiffKeys) *diffModel {
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
 	ti.CharLimit = 80
 	ti.Width = 40
+
+	kb := buildKeybinds(keybinds)
 
 	return &diffModel{
 		result:       result,
 		searchIn:     ti,
 		summaryStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")),
 		hintStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("#6b7280")),
+		keybinds:     kb,
 	}
+}
+
+func buildKeybinds(k config.DiffKeys) map[string][]string {
+	kb := map[string][]string{
+		"prev_hunk":        {"{", "h"},
+		"next_hunk":        {"}", "l"},
+		"scroll_down":      {"j", "down"},
+		"scroll_up":        {"k", "up"},
+		"toggle_side":      {"v"},
+		"quit":             {"q"},
+		"help":             {"?"},
+		"export":           {"e"},
+		"next_search":      {"n"},
+		"prev_search":      {"N"},
+		"scroll_to_hunk":   {"z"},
+		"scroll_to_top":    {"t"},
+		"scroll_to_bottom": {"b"},
+		"yank":             {"y"},
+		"yank_all":         {"Y"},
+	}
+	if len(k.PrevHunk) > 0 {
+		kb["prev_hunk"] = k.PrevHunk
+	}
+	if len(k.NextHunk) > 0 {
+		kb["next_hunk"] = k.NextHunk
+	}
+	if len(k.ScrollDown) > 0 {
+		kb["scroll_down"] = k.ScrollDown
+	}
+	if len(k.ScrollUp) > 0 {
+		kb["scroll_up"] = k.ScrollUp
+	}
+	if k.ToggleSideBySide != "" {
+		kb["toggle_side"] = []string{k.ToggleSideBySide}
+	}
+	if len(k.Quit) > 0 {
+		kb["quit"] = k.Quit
+	}
+	if k.Help != "" {
+		kb["help"] = []string{k.Help}
+	}
+	if k.Export != "" {
+		kb["export"] = []string{k.Export}
+	}
+	if k.NextSearch != "" {
+		kb["next_search"] = []string{k.NextSearch}
+	}
+	if k.PrevSearch != "" {
+		kb["prev_search"] = []string{k.PrevSearch}
+	}
+	if k.ScrollToHunk != "" {
+		kb["scroll_to_hunk"] = []string{k.ScrollToHunk}
+	}
+	if k.ScrollToTopOfHunk != "" {
+		kb["scroll_to_top"] = []string{k.ScrollToTopOfHunk}
+	}
+	if k.ScrollToBottomOfHunk != "" {
+		kb["scroll_to_bottom"] = []string{k.ScrollToBottomOfHunk}
+	}
+	return kb
+}
+
+func keyMatch(key string, keys []string) bool {
+	for _, k := range keys {
+		if key == k {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *diffModel) Init() tea.Cmd {
@@ -1057,7 +1132,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if key == "q" || key == keyCtrlC {
+	if keyMatch(key, m.keybinds["quit"]) || key == keyCtrlC {
 		m.pendingG = false
 		m.pendingZ = false
 		return m, tea.Quit
@@ -1078,8 +1153,8 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.pendingZ {
 		m.pendingZ = false
 		m.pendingG = false
-		switch key {
-		case "z":
+		switch {
+		case keyMatch(key, m.keybinds["scroll_to_hunk"]):
 			if len(m.hunkIdx) > 0 {
 				idx := m.hunkIdx[m.currentHunk]
 				half := m.vp.Height / 2
@@ -1091,13 +1166,13 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.count = 0
 			return m, nil
-		case "t":
+		case keyMatch(key, m.keybinds["scroll_to_top"]):
 			if len(m.hunkIdx) > 0 {
 				m.vp.YOffset = m.hunkIdx[m.currentHunk]
 			}
 			m.count = 0
 			return m, nil
-		case "b":
+		case keyMatch(key, m.keybinds["scroll_to_bottom"]):
 			if len(m.hunkIdx) > 0 {
 				idx := m.hunkIdx[m.currentHunk]
 				h := m.vp.Height
@@ -1114,19 +1189,19 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch key {
-	case "{", "h":
+	switch {
+	case keyMatch(key, m.keybinds["prev_hunk"]):
 		m.pendingG = false
 		m.count = 0
 		m.prevHunk()
 		return m, nil
-	case "}", "l":
+	case keyMatch(key, m.keybinds["next_hunk"]):
 		m.pendingG = false
 		m.count = 0
 		m.nextHunk()
 		return m, nil
 
-	case "n":
+	case keyMatch(key, m.keybinds["next_search"]):
 		m.pendingG = false
 		m.pendingZ = false
 		m.pendingY = false
@@ -1140,7 +1215,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.count = 0
 		return m, nil
-	case "N":
+	case keyMatch(key, m.keybinds["prev_search"]):
 		m.pendingG = false
 		m.pendingZ = false
 		m.pendingY = false
@@ -1160,7 +1235,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.count = 0
 		return m, nil
 
-	case "j", "down":
+	case keyMatch(key, m.keybinds["scroll_down"]):
 		m.pendingG = false
 		n := m.count
 		n = max(n, 1)
@@ -1168,7 +1243,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.count = 0
 		return m, nil
 
-	case "k", "up":
+	case keyMatch(key, m.keybinds["scroll_up"]):
 		m.pendingG = false
 		n := m.count
 		n = max(n, 1)
@@ -1176,7 +1251,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.count = 0
 		return m, nil
 
-	case "v":
+	case keyMatch(key, m.keybinds["toggle_side"]):
 		m.pendingG = false
 		m.sideBySide = !m.sideBySide
 		yOff := m.vp.YOffset
@@ -1187,7 +1262,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "g":
+	case key == "g":
 		m.pendingZ = false
 		if m.pendingG {
 			m.pendingG = false
@@ -1197,14 +1272,14 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.count = 0
 		return m, nil
-	case "G":
+	case key == "G":
 		m.pendingG = false
 		m.pendingZ = false
 		m.vp.GotoBottom()
 		m.count = 0
 		return m, nil
 
-	case "z":
+	case keyMatch(key, m.keybinds["scroll_to_hunk"]):
 		m.pendingG = false
 		if m.pendingZ {
 			m.pendingZ = false
@@ -1226,7 +1301,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.count = 0
 		return m, nil
 
-	case "/":
+	case key == "/":
 		m.pendingG = false
 		m.pendingZ = false
 		m.searchMode = true
@@ -1236,7 +1311,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		return m, nil
 
-	case "y":
+	case keyMatch(key, m.keybinds["yank"]):
 		m.pendingG = false
 		m.pendingZ = false
 		if m.pendingY {
@@ -1246,19 +1321,13 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingY = true
 		return m, nil
 
-	case "Y":
+	case keyMatch(key, m.keybinds["yank_all"]):
 		m.pendingG = false
 		m.pendingZ = false
 		m.pendingY = false
 		return m, m.yankAll()
 
-	case "o":
-		m.pendingG = false
-		m.pendingZ = false
-		m.pendingY = false
-		return m, m.openInEditor()
-
-	case "e":
+	case keyMatch(key, m.keybinds["export"]):
 		m.pendingG = false
 		m.pendingZ = false
 		m.pendingY = false
@@ -1266,7 +1335,7 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.exportAsk = true
 		return m, nil
 
-	case "?":
+	case keyMatch(key, m.keybinds["help"]):
 		m.pendingG = false
 		m.pendingZ = false
 		m.pendingY = false
@@ -1274,13 +1343,19 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.count = 0
 		return m, nil
 
-	case "CtrlU":
+	case key == "o":
+		m.pendingG = false
+		m.pendingZ = false
+		m.pendingY = false
+		return m, m.openInEditor()
+
+	case key == "CtrlU":
 		m.pendingG = false
 		m.pendingZ = false
 		m.vp.HalfViewUp()
 		return m, nil
 
-	case "CtrlD":
+	case key == "CtrlD":
 		m.pendingG = false
 		m.pendingZ = false
 		m.vp.HalfViewDown()
@@ -1404,10 +1479,10 @@ func (m *diffModel) openInEditor() tea.Cmd {
 	}
 	tmpPath := f.Name()
 	if _, err := f.WriteString(m.result.Diff); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil
 	}
-	f.Close()
+	_ = f.Close()
 
 	editor := os.Getenv("OCD_DIFF_PAGER")
 	if editor == "" {
@@ -1423,13 +1498,13 @@ func (m *diffModel) openInEditor() tea.Cmd {
 	if editor == "less" {
 		cmd := exec.Command("less", "-R", tmpPath)
 		return tea.ExecProcess(cmd, func(err error) tea.Msg {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 			return nil
 		})
 	}
 	cmd := exec.Command(editor, tmpPath)
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return nil
 	})
 }
@@ -1504,8 +1579,14 @@ func (m *diffModel) View() string {
 	}
 
 	footer := m.hintStyle.Render(
-		fmt.Sprintf("\n%s  {}/h/l  j/k  /  e  o  q  ? help",
+		fmt.Sprintf("\n%s  %s/%s  %s/%s  /  %s  %s  q  ? help",
 			hunkInfo,
+			m.keybinds["prev_hunk"][0],
+			m.keybinds["next_hunk"][0],
+			m.keybinds["scroll_up"][0],
+			m.keybinds["scroll_down"][0],
+			m.keybinds["next_search"][0],
+			m.keybinds["export"][0],
 		),
 	)
 
@@ -1533,20 +1614,19 @@ func (m *diffModel) renderHelp() string {
 	helpContent := []string{
 		"  Diff Viewer Help",
 		"",
-		"  {}/h/l   Jump prev/next hunk",
-		"  j/k       Scroll up/down",
-		"  n/N       Next/prev search match",
-		"  gg/G      Top/bottom of diff",
-		"  gg/G      Top/bottom of diff",
-		"  zz/zt/zb  Center/top/bottom current hunk",
-		"  e         Export TLDR analysis (TOML/JSON/YAML)",
-		"  v         Toggle side-by-side",
+		fmt.Sprintf("  %s/%s   Jump prev/next hunk", m.keybinds["prev_hunk"][0], m.keybinds["next_hunk"][0]),
+		fmt.Sprintf("  %s/%s       Scroll up/down", m.keybinds["scroll_up"][0], m.keybinds["scroll_down"][0]),
+		fmt.Sprintf("  %s/%s       Next/prev search match", m.keybinds["next_search"][0], m.keybinds["prev_search"][0]),
+		fmt.Sprintf("  %s/%s      Top/bottom of diff", "g", "G"),
+		fmt.Sprintf("  %s/%s/%s  Center/top/bottom current hunk", m.keybinds["scroll_to_hunk"][0], m.keybinds["scroll_to_top"][0], m.keybinds["scroll_to_bottom"][0]),
+		fmt.Sprintf("  %s         Export TLDR analysis (TOML/JSON/YAML)", m.keybinds["export"][0]),
+		fmt.Sprintf("  %s         Toggle side-by-side", m.keybinds["toggle_side"][0]),
 		"  /         Search within diff",
-		"  y         Yank current hunk to clipboard",
-		"  Y         Yank entire diff to clipboard",
+		fmt.Sprintf("  %s         Yank current hunk to clipboard", m.keybinds["yank"][0]),
+		fmt.Sprintf("  %s         Yank entire diff to clipboard", m.keybinds["yank_all"][0]),
 		"  yy        Yank current hunk header line content",
 		"  o         Open diff viewer ($OCD_DIFF_PAGER / $EDITOR / delta / less)",
-		"  q / Esc   Quit / Close help",
+		fmt.Sprintf("  %s / Esc   Quit / Close help", m.keybinds["quit"][0]),
 	}
 	helpText := strings.Join(helpContent, "\n")
 	helpStyle := lipgloss.NewStyle().
@@ -1560,8 +1640,8 @@ func (m *diffModel) renderHelp() string {
 	return lipgloss.NewStyle().PaddingLeft(pad).Render("\n\n" + box + "\n\nPress ? or Esc to close help")
 }
 
-func RunDiffViewer(result *models.DiffResult) error {
-	m := NewDiffModel(result)
+func RunDiffViewer(result *models.DiffResult, keybinds config.DiffKeys) error {
+	m := NewDiffModel(result, keybinds)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, err := p.Run()
 	if err != nil {

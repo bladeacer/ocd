@@ -43,7 +43,30 @@ Unset fields keep their command default.
 |------|-----------|---------|-------------|
 | `--output` | `output_dir` | `""` | Common output directory fallback. Falls back to cwd when empty. |
 
-## Example `.ocd.toml`
+## diff_keys
+
+Configure keybind overrides for the diff viewer (`ocd diff`).
+Each field accepts a single key string or a list of key strings.
+The default keys are shown below. See the diff viewer help
+(`?` inside the diff viewer) for a full list of all keybindings.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prev_hunk` | `[]string` | `["{", "h"]` | Navigate to previous hunk |
+| `next_hunk` | `[]string` | `["}", "l"]` | Navigate to next hunk |
+| `scroll_down` | `[]string` | `["j", "down"]` | Scroll down |
+| `scroll_up` | `[]string` | `["k", "up"]` | Scroll up |
+| `toggle_side_by_side` | `string` | `"v"` | Toggle side-by-side view |
+| `quit` | `[]string` | `["q"]` | Quit the diff viewer |
+| `help` | `string` | `"?"` | Toggle help overlay |
+| `export` | `string` | `"e"` | Export TLDR analysis |
+| `next_search` | `string` | `"n"` | Next search match |
+| `prev_search` | `string` | `"N"` | Previous search match |
+| `scroll_to_hunk` | `string` | `"z"` | Scroll to current hunk |
+| `scroll_to_top_of_hunk` | `string` | `"t"` | Scroll to top of current hunk |
+| `scroll_to_bottom_of_hunk` | `string` | `"b"` | Scroll to bottom of current hunk |
+
+Example `.ocd.toml` with `diff_keys`:
 
 ```toml
 # diff command defaults
@@ -52,6 +75,12 @@ tldr_format = "json"
 tldr_dir = "~/reports"
 pick = false
 refresh = false
+
+# diff keybind overrides
+[diff_keys]
+prev_hunk = ["{"]
+next_hunk = ["}"]
+quit = ["q"]
 
 # stat command defaults
 stat_format = "yaml"

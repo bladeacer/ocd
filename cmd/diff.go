@@ -151,7 +151,7 @@ Direct command-line flags always take priority over config file values.`,
 				return nil
 			}
 
-			return tui.RunDiffViewer(result)
+			return tui.RunDiffViewer(result, cfg.DiffKeys)
 		},
 	}
 

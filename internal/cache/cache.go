@@ -93,7 +93,7 @@ func (s *Store) Clear() error {
 		}
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	names, err := d.Readdirnames(-1)
 	if err != nil {
 		return err
