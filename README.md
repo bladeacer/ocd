@@ -8,11 +8,15 @@
 Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR
 bundle directly from GitHub releases - no Docker or Node.js needed.
 
-Keybinds are Vim-inspired so terminal enjoyers will feel right at home. I try
-to stick to a loose interpretation of the UNIX software philosophy here.
+Keybinds are Vim-inspired so terminal users will feel right at home. This
+project follows a loose interpretation of the UNIX software philosophy.
 
 Do one thing and do it well, in this case extracting and comparing `app.css`
 between Obsidian versions.
+
+This project uses British English in its documentation, following the
+discipline of [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/)
+via the [SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) skill.
 
 ## Installation
 
@@ -97,7 +101,7 @@ are highlighted with a blue background.
 |-----|--------|
 | `↑` `↓` `j` `k` | Scroll one line |
 | `pgup` `pgdn` | Scroll one page |
-| `{}` | Jump prev/next diff hunk |
+| `{}` `hl` | Jump prev/next diff hunk |
 | `gg` / `G` | Jump to top / bottom of diff |
 | `zz` / `zt` / `zb` | Center / top / bottom current hunk |
 | `n` / `N` | Next / previous (search match when searching, else hunk) |
@@ -134,6 +138,49 @@ ocd extract 1.12.7
 ocd clean
 ```
 
+### Check theme variables
+
+```bash
+ocd check 1.12.7 ./my-theme.css
+ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
+ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
+```
+
+Extract the CSS variables from a target Obsidian version and compare them
+against a local theme file. The report lists variables that are missing from
+the theme (present in the target) and variables that the theme defines that are
+not in the target.
+
+## Configuration
+
+Defaults for the `--format` and `--output` flags on `diff`, `stat`, and
+`check` may be set in a configuration file. Files are TOML. Resolution order,
+from highest to lowest priority, is:
+
+1. Direct command-line flag value.
+2. Per-project config: `.ocd.toml` in the current working directory.
+3. Global config: `$XDG_CONFIG_HOME/ocd/config.toml`, falling back to
+   `~/.config/ocd/config.toml` when `$XDG_CONFIG_HOME` is unset.
+
+Only fields that are explicitly set in a config file participate in the merge,
+so a global config can set a default without overriding a per-project value.
+
+Example global config:
+
+```toml
+stat_format = "json"
+stat_dir = "~/reports"
+tldr_dir = "~/reports"
+```
+
+Example per-project config:
+
+```toml
+[tldr]
+tldr = true
+tldr_format = "yaml"
+```
+
 ## Commands
 
 | Command | Description |
@@ -142,6 +189,7 @@ ocd clean
 | `extract <ver>` | Download + extract `app.css` from GitHub releases |
 | `diff [a] [b]` | Interactive picker or direct diff with colored viewer |
 | `stat <ver>` | CSS composition stats (selectors, variables, colors) for a single version |
+| `check <ver> <theme>` | Compare a theme's CSS variables against a target version |
 | `clean` | Wipe `.obsidian_cache/` metadata and extracted CSS |
 
 ### Example output: Stat
@@ -243,6 +291,16 @@ make clean       # remove binary and cache
 
 Tests cover RSS electron fill, Docker tag parsing, ASAR extraction,
 CSS diff, cache operations and other details.
+
+## Changelog
+
+See [docs/changelogs/index.md](docs/changelogs/index.md) for the full history of changes.
+
+## Credits
+
+This project's documentation is written in British English following the
+discipline of ASD-STE100 Simplified Technical English, via the
+[SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) skill.
 
 ## LLM Usage Disclaimer
 

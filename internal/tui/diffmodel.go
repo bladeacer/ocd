@@ -1115,12 +1115,12 @@ func (m *diffModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch key {
-	case "{":
+	case "{", "h":
 		m.pendingG = false
 		m.count = 0
 		m.prevHunk()
 		return m, nil
-	case "}":
+	case "}", "l":
 		m.pendingG = false
 		m.count = 0
 		m.nextHunk()
@@ -1504,7 +1504,7 @@ func (m *diffModel) View() string {
 	}
 
 	footer := m.hintStyle.Render(
-		fmt.Sprintf("\n%s  {}  j/k  /  e  o  q  ? help",
+		fmt.Sprintf("\n%s  {}/h/l  j/k  /  e  o  q  ? help",
 			hunkInfo,
 		),
 	)
@@ -1533,7 +1533,7 @@ func (m *diffModel) renderHelp() string {
 	helpContent := []string{
 		"  Diff Viewer Help",
 		"",
-		"  {}        Jump prev/next hunk",
+		"  {}/h/l   Jump prev/next hunk",
 		"  j/k       Scroll up/down",
 		"  n/N       Next/prev search match",
 		"  gg/G      Top/bottom of diff",

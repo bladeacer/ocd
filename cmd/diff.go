@@ -9,23 +9,27 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bladeacer/ocd/internal/cache"
+	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/sources"
 	"github.com/bladeacer/ocd/internal/tui"
 )
 
-func expandPath(p string) string {
-	if strings.HasPrefix(p, "~/") {
-		home, _ := os.UserHomeDir()
-		p = filepath.Join(home, p[2:])
-	}
-	return os.ExpandEnv(p)
-}
-
 func printTLDR(t *core.TLDRResult, exportPath string) {
 	fmt.Println(t.String())
 	if exportPath != "" {
 		fmt.Printf("Exported: %s\n", exportPath)
+	}
+}
+
+func marshalTLDR(t *core.TLDRResult, format string) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return t.MarshalJSON()
+	case "yaml", "yml":
+		return t.MarshalYAML()
+	default:
+		return t.MarshalTOML()
 	}
 }
 
@@ -55,9 +59,35 @@ Versions are auto-extracted if not already cached.
 If no arguments are provided, or --pick is used, an interactive
 version picker is launched.
 
-Use --tldr to print a summary of CSS changes and export to file.`,
+Use --tldr to print a summary of CSS changes and export to file.
+
+Configuration: defaults for the flags below may be set in a per-project
+config file in the working directory, or in the global config at
+$XDG_CONFIG_HOME/ocd/config.toml (falling back to ~/.config/ocd).
+Direct command-line flags always take priority over config file values.`,
 		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, cfgErr := config.Resolve()
+			if cfgErr != nil {
+				return cfgErr
+			}
+			// CLI flag overrides config overrides default.
+			if !cmd.Flags().Changed("tldr") && cfg.TLDR != nil {
+				tldr = *cfg.TLDR
+			}
+			if !cmd.Flags().Changed("tldr-format") && cfg.TLDRFormat != "" {
+				tldrFormat = cfg.TLDRFormat
+			}
+			if !cmd.Flags().Changed("tldr-output") && cfg.TLDRDir != "" {
+				tldrOutput = cfg.TLDRDir
+			}
+			if !cmd.Flags().Changed("pick") && cfg.Pick != nil {
+				interactive = *cfg.Pick
+			}
+			if !cmd.Flags().Changed("refresh") && cfg.Refresh != nil {
+				forceRefresh = *cfg.Refresh
+			}
+
 			var versionA, versionB string
 
 			if len(args) == 2 {
@@ -99,10 +129,8 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 				tldrResult.VersionA = versionA
 				tldrResult.VersionB = versionB
 				tldrResult.SemverBump = core.SemverBump(versionA, versionB)
-				exportPath := ""
-				if tldrOutput != "" {
-					exportPath = expandPath(tldrOutput)
-				} else {
+				exportPath := tldrOutput
+				if exportPath == "" {
 					wd, wdErr := os.Getwd()
 					if wdErr != nil {
 						exportPath = "."
@@ -110,9 +138,11 @@ Use --tldr to print a summary of CSS changes and export to file.`,
 						exportPath = wd
 					}
 				}
-				fname := fmt.Sprintf("ocd-tldr-%s-%s.%s", versionA, versionB, tldrFormat)
-				fullPath := filepath.Join(exportPath, fname)
-				if err := core.ExportTLDR(tldrResult, fullPath, tldrFormat); err != nil {
+				fname := fmt.Sprintf("ocd-tldr-%s-%s", versionA, versionB)
+				fullPath, err := core.ExportFile(func() ([]byte, error) {
+					return marshalTLDR(tldrResult, tldrFormat)
+				}, exportPath, fname, tldrFormat)
+				if err != nil {
 					return fmt.Errorf("export tldr: %w", err)
 				}
 				printTLDR(tldrResult, fullPath)

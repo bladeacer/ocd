@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
 )
 
@@ -21,9 +22,26 @@ func NewStatCmd() *cobra.Command {
 selectors, CSS variables, color usage, etc.
 
 Results are printed to stdout and optionally exported as
-TOML, JSON, or YAML.`,
+TOML, JSON, or YAML.
+
+Configuration: --format and --output defaults may be set in a per-project
+config file in the working directory, or in the global config at
+$XDG_CONFIG_HOME/ocd/config.toml (falling back to ~/.config/ocd).
+Direct command-line flags always take priority over config file values.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, cfgErr := config.Resolve()
+			if cfgErr != nil {
+				return cfgErr
+			}
+			// CLI flag overrides config overrides default.
+			if !cmd.Flags().Changed("format") && cfg.StatFormat != "" {
+				format = cfg.StatFormat
+			}
+			if !cmd.Flags().Changed("output") && cfg.StatDir != "" {
+				output = cfg.StatDir
+			}
+
 			version := args[0]
 
 			path, err := core.ExtractCSS(version)
@@ -48,12 +66,12 @@ TOML, JSON, or YAML.`,
 				} else {
 					exportPath = wd
 				}
-			} else {
-				exportPath = expandPath(exportPath)
 			}
-			fname := fmt.Sprintf("ocd-stat-%s.%s", version, format)
-			fullPath := filepath.Join(exportPath, fname)
-			if err := core.ExportTLDR(result, fullPath, format); err != nil {
+			fname := fmt.Sprintf("ocd-stat-%s", version)
+			fullPath, err := core.ExportFile(func() ([]byte, error) {
+				return marshalStat(result, format)
+			}, exportPath, fname, format)
+			if err != nil {
 				return fmt.Errorf("export stat: %w", err)
 			}
 			fmt.Printf("\nExported: %s\n", fullPath)
@@ -64,4 +82,15 @@ TOML, JSON, or YAML.`,
 	cmd.Flags().StringVarP(&format, "format", "f", "toml", "Export format: toml (default), json, or yaml")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME)")
 	return cmd
+}
+
+func marshalStat(t *core.TLDRResult, format string) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return t.MarshalJSON()
+	case "yaml", "yml":
+		return t.MarshalYAML()
+	default:
+		return t.MarshalTOML()
+	}
 }
