@@ -340,3 +340,77 @@ func TestModelSelectRowNoRows(t *testing.T) {
 		t.Log("no row selected, no command")
 	}
 }
+
+func TestModelParseVersion(t *testing.T) {
+	tests := []struct {
+		v    string
+		want []int
+	}{
+		{"1.2.3", []int{1, 2, 3}},
+		{"10.20.30", []int{10, 20, 30}},
+		{"1.2", []int{1, 2, 0}},
+		{"abc", []int{0, 0, 0}},
+	}
+	for _, tt := range tests {
+		got := parseVersion(tt.v)
+		if len(got) != 3 {
+			t.Errorf("parseVersion(%q) len = %d, want 3", tt.v, len(got))
+			continue
+		}
+		for i := 0; i < 3; i++ {
+			if got[i] != tt.want[i] {
+				t.Errorf("parseVersion(%q)[%d] = %d, want %d", tt.v, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
+func TestModelAtoi(t *testing.T) {
+	if got := atoi("123"); got != 123 {
+		t.Errorf("atoi(123) = %d, want 123", got)
+	}
+	if got := atoi("0"); got != 0 {
+		t.Errorf("atoi(0) = %d, want 0", got)
+	}
+	if got := atoi("abc"); got != 0 {
+		t.Errorf("atoi(abc) = %d, want 0", got)
+	}
+}
+
+func TestModelCompareVersions(t *testing.T) {
+	tests := []struct {
+		a, b []int
+		want int
+	}{
+		{[]int{1, 0, 0}, []int{2, 0, 0}, -1},
+		{[]int{2, 0, 0}, []int{1, 0, 0}, 1},
+		{[]int{1, 0, 0}, []int{1, 0, 0}, 0},
+		{[]int{1, 1, 0}, []int{1, 0, 0}, 1},
+	}
+	for _, tt := range tests {
+		got := compareVersions(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("compareVersions(%v, %v) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestModelSortPriority(t *testing.T) {
+	row := table.Row{"pkg", "1.0.0", "Desktop", "2024-01-01", "Found", "", "", "[x]"}
+	if got := sortPriority(row); got != 0 {
+		t.Errorf("sortPriority([x] row) = %d, want 0", got)
+	}
+	row = table.Row{"pkg", "1.0.0", "Desktop", "2024-01-01", "N/A"}
+	if got := sortPriority(row); got != 2 {
+		t.Errorf("sortPriority(N/A row) = %d, want 2", got)
+	}
+}
+
+func TestModelFmtElectron(t *testing.T) {
+	if got := fmtElectron(""); got != "---" {
+		t.Errorf("fmtElectron(\"\") = %q, want ---", got)
+	}
+	if got := fmtElectron("28"); got != "v28" {
+		t.Errorf("fmtElectron(\"28\") = %q, want v28", got)
+	}
+}

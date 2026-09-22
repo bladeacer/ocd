@@ -1749,3 +1749,16 @@ func TestAnalyzeCSS(t *testing.T) {
 		t.Errorf("expected selectors, got 0")
 	}
 }
+
+func TestDiffModelRenderExportPrompt(t *testing.T) {
+	m := NewDiffModel(&models.DiffResult{VersionA: "a", VersionB: "b"})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m.exportAsk = true
+	prompt := m.renderExportPrompt()
+	if prompt == "" {
+		t.Error("expected non-empty export prompt")
+	}
+	if !strings.Contains(prompt, "Export TLDR analysis") {
+		t.Errorf("expected 'Export TLDR analysis' in prompt, got: %s", prompt)
+	}
+}

@@ -1,6 +1,9 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -366,5 +369,124 @@ func TestAnalyzeCSS(t *testing.T) {
 	}
 	if r.AverageSpecificity <= 0 {
 		t.Error("expected positive average specificity")
+	}
+}
+
+func TestDedupStrings(t *testing.T) {
+	input := []string{"a", "b", "a", "c", "b"}
+	result := dedupStrings(input)
+	if len(result) != 3 {
+		t.Errorf("expected 3 deduped strings, got %d", len(result))
+	}
+	if result[0] != "a" || result[1] != "b" || result[2] != "c" {
+		t.Errorf("unexpected deduped result: %v", result)
+	}
+}
+
+func TestDedupStringsEmpty(t *testing.T) {
+	result := dedupStrings(nil)
+	if len(result) != 0 {
+		t.Errorf("expected empty result, got %d", len(result))
+	}
+}
+
+func TestSpecificityStats(t *testing.T) {
+	vals := []float64{10, 100, 1}
+	s := specificityStats(vals)
+	if s == "" {
+		t.Error("expected non-empty specificity stats")
+	}
+	if !strings.Contains(s, "mean") {
+		t.Errorf("expected 'mean' in output, got %s", s)
+	}
+}
+
+func TestSpecificityStatsEmpty(t *testing.T) {
+	s := specificityStats(nil)
+	if s != "" {
+		t.Errorf("expected empty string for empty vals, got %q", s)
+	}
+}
+
+func TestStatString(t *testing.T) {
+	r := &TLDRResult{
+		VersionA:     "1.0.0",
+		AdditionsLOC: 10,
+	}
+	s := r.StatString()
+	if s == "" {
+		t.Error("expected non-empty StatString")
+	}
+}
+
+func TestExportTLDR(t *testing.T) {
+	r := &TLDRResult{
+		VersionA:     "1.0.0",
+		VersionB:     "1.1.0",
+		AdditionsLOC: 10,
+	}
+	tmp := filepath.Join(t.TempDir(), "test.toml")
+	err := ExportTLDR(r, tmp, "toml")
+	if err != nil {
+		t.Fatalf("ExportTLDR: %v", err)
+	}
+	if _, err := os.Stat(tmp); os.IsNotExist(err) {
+		t.Error("expected file to exist")
+	}
+}
+
+func TestExportTLDRJSON(t *testing.T) {
+	r := &TLDRResult{
+		VersionA: "1.0.0",
+		VersionB: "1.1.0",
+	}
+	tmp := filepath.Join(t.TempDir(), "test.json")
+	err := ExportTLDR(r, tmp, "json")
+	if err != nil {
+		t.Fatalf("ExportTLDR JSON: %v", err)
+	}
+	data, err := os.ReadFile(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"version_a"`) {
+		t.Error("expected JSON output")
+	}
+}
+
+func TestImportFileCSS(t *testing.T) {
+	tmpCSS := filepath.Join(t.TempDir(), "theme.css")
+	if err := os.WriteFile(tmpCSS, []byte(":root { --a: 1; }"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	destDir := filepath.Join(t.TempDir(), "import")
+	path, err := ImportFile(tmpCSS, destDir)
+	if err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+	if path == "" {
+		t.Error("expected non-empty path")
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Error("expected imported file to exist")
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "src.css")
+	dst := filepath.Join(t.TempDir(), "dst.css")
+	if err := os.WriteFile(src, []byte("body {}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err := copyFile(src, dst)
+	if err != nil {
+		t.Fatalf("copyFile: %v", err)
+	}
+	data, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "body {}" {
+		t.Errorf("expected 'body {}', got %s", string(data))
 	}
 }

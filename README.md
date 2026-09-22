@@ -101,7 +101,7 @@ are highlighted with a blue background.
 |-----|--------|
 | `↑` `↓` `j` `k` | Scroll one line |
 | `pgup` `pgdn` | Scroll one page |
-| `{}` `hl` | Jump prev/next diff hunk |
+| `{` `h` / `}` `l` | Jump prev/next diff hunk |
 | `gg` / `G` | Jump to top / bottom of diff |
 | `zz` / `zt` / `zb` | Center / top / bottom current hunk |
 | `n` / `N` | Next / previous (search match when searching, else hunk) |

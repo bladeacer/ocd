@@ -1,6 +1,9 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -80,5 +83,111 @@ func TestVariableReportString(t *testing.T) {
 	s := report.String()
 	if s == "" {
 		t.Error("expected non-empty String()")
+	}
+}
+
+func TestVariableReportStringNoMissingNoExtra(t *testing.T) {
+	report := &VariableReport{
+		TargetVersion: "1.0.0",
+		ThemePath:     "theme.css",
+	}
+	s := report.String()
+	if !strings.Contains(s, "covers all target variables") {
+		t.Errorf("expected all-variables message, got %s", s)
+	}
+}
+
+func TestVariableNames(t *testing.T) {
+	vars := []CSSVariable{
+		{Name: "--a", Value: "1"},
+		{Name: "--b", Value: "2"},
+	}
+	names := VariableNames(vars)
+	if len(names) != 2 {
+		t.Fatalf("expected 2 names, got %d", len(names))
+	}
+	if names[0] != "--a" || names[1] != "--b" {
+		t.Errorf("expected [--a --b], got %v", names)
+	}
+}
+
+func TestVariableNamesEmpty(t *testing.T) {
+	names := VariableNames(nil)
+	if len(names) != 0 {
+		t.Errorf("expected 0 names for nil, got %d", len(names))
+	}
+}
+
+func TestReadCSSVariables(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "theme.css")
+	content := `:root {
+  --color-primary: blue;
+  --spacing-sm: 8px;
+}`
+	if err := os.WriteFile(tmp, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	vars, err := ReadCSSVariables(tmp)
+	if err != nil {
+		t.Fatalf("ReadCSSVariables: %v", err)
+	}
+	if len(vars) != 2 {
+		t.Errorf("expected 2 variables, got %d", len(vars))
+	}
+	if vars[0].Name != "--color-primary" {
+		t.Errorf("expected --color-primary, got %q", vars[0].Name)
+	}
+}
+
+func TestReadCSSVariablesNotFound(t *testing.T) {
+	_, err := ReadCSSVariables("/nonexistent/path/theme.css")
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
+func TestMarshalTOML(t *testing.T) {
+	report := &VariableReport{
+		TargetVersion: "1.0.0",
+		ThemePath:     "theme.css",
+		Missing:       []string{"--a"},
+		Extra:         []string{"--b"},
+	}
+	data, err := report.MarshalTOML()
+	if err != nil {
+		t.Fatalf("MarshalTOML: %v", err)
+	}
+	if !strings.Contains(string(data), "1.0.0") {
+		t.Errorf("TOML output should contain target version, got %s", string(data))
+	}
+}
+
+func TestMarshalJSON(t *testing.T) {
+	report := &VariableReport{
+		TargetVersion: "1.0.0",
+		ThemePath:     "theme.css",
+		Missing:       []string{"--a"},
+	}
+	data, err := report.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	if !strings.Contains(string(data), `"missing"`) {
+		t.Errorf("JSON output should contain missing, got %s", string(data))
+	}
+}
+
+func TestMarshalYAML(t *testing.T) {
+	report := &VariableReport{
+		TargetVersion: "1.0.0",
+		ThemePath:     "theme.css",
+		Missing:       []string{"--a"},
+	}
+	data, err := report.MarshalYAML()
+	if err != nil {
+		t.Fatalf("MarshalYAML: %v", err)
+	}
+	if !strings.Contains(string(data), "missing") {
+		t.Errorf("YAML output should contain missing, got %s", string(data))
 	}
 }

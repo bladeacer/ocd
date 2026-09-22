@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -604,5 +605,38 @@ func TestPickerHandleKeyQuestionMarkSearch(t *testing.T) {
 	}
 	if !m.showHelp {
 		t.Error("showHelp should be true after ? in search")
+	}
+}
+
+func TestPickerModelUpdateDataLoaded(t *testing.T) {
+	m := &pickerModel{
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+			}),
+		),
+	}
+	msg := dataLoadedMsg{result: &models.FetchResult{}}
+	_, _ = m.Update(msg)
+	if m.result == nil {
+		t.Error("expected result to be set")
+	}
+}
+
+func TestPickerModelUpdateDataLoadedError(t *testing.T) {
+	m := &pickerModel{
+		tbl: table.New(
+			table.WithColumns([]table.Column{
+				{Title: "V", Width: 14},
+			}),
+		),
+	}
+	msg := dataLoadedMsg{result: &models.FetchResult{Error: fmt.Errorf("fetch error")}}
+	_, cmd := m.Update(msg)
+	if cmd != nil {
+		t.Error("expected nil command on error")
+	}
+	if m.err == nil {
+		t.Error("expected err to be set")
 	}
 }
