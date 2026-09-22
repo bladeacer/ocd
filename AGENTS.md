@@ -29,7 +29,7 @@ ocd/
 │       ├── 0.1.0.md          # v0.1.0 changelog
 │       ├── 0.2.0.md          # v0.2.0 changelog
 │       ├── 0.3.0.md          # v0.3.0 changelog
-│       └── 0.4.0.md          # v0.4.0 (Unreleased) changelog
+│       └── 0.4.0.md          # v0.4.0 changelog
 ├── internal/
 │   ├── cache/                # Cache management for extracted CSS
 │   ├── config/               # OS-aware configuration file resolution
@@ -118,8 +118,7 @@ that produce many findings on legacy code patterns.
 
 Historical changelogs live at `docs/changelogs/`. Each version has its own
 markdown file with a link to the corresponding GitHub releases page.
-The `v0.4.0` release is pending (unreleased). The index at
-`docs/changelogs/index.md` provides an overview table with all versions.
+The index at `docs/changelogs/index.md` provides an overview table with all versions.
 
 ## Building and Testing
 
