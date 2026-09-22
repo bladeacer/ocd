@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Links |
 |---------|------|-------|
-| [0.4.0](0.4.0.md)  | Unreleased | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
+| [0.4.0](0.4.0.md)  | 2026-09-22 | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
 | [0.3.0](0.3.0.md) | 2026-07-30 | [GitHub Release](https://github.com/bladeacer/ocd/releases/tag/v0.3.0) |
 | [0.2.0](0.2.0.md) | 2026-07-24 | [GitHub Release](https://github.com/bladeacer/ocd/releases/tag/v0.2.0) |
 | [0.1.0](0.1.0.md) | 2026-07-23 | [GitHub Release](https://github.com/bladeacer/ocd/releases/tag/v0.1.0) |
