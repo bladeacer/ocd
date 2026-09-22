@@ -1,0 +1,32 @@
+# ocd Configuration File
+# Place this file at `.ocd.toml` in your working directory, or at
+# `$XDG_CONFIG_HOME/ocd/config.toml` (falling back to `~/.config/ocd/config.toml`).
+#
+# Resolution order (highest to lowest priority):
+#   1. Direct command-line flag value
+#   2. Per-project config: `.ocd.toml` in the working directory
+#   3. Global config: `$XDG_CONFIG_HOME/ocd/config.toml`
+#
+# Only fields explicitly set in a config file participate in the merge.
+# Unset fields keep their command default.
+#
+# File export defaults to the current working directory for all commands.
+# Use the keys below to override that default.
+
+# diff command defaults
+tldr = false
+tldr_format = "toml"
+tldr_dir = "~/reports"
+pick = false
+refresh = false
+
+# stat command defaults
+stat_format = "toml"
+stat_dir = "~/reports"
+
+# check command defaults
+check_format = "toml"
+check_dir = "~/reports"
+
+# Common output directory fallback for all commands
+output_dir = "~/reports"

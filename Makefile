@@ -49,6 +49,9 @@ tag: ## Bump version, commit, create and push an annotated git tag
 	fi; \
 	git push origin "$$TAG"
 
+check-links: ## Check all markdown files for broken links
+	python3 scripts/check_links.py
+
 watch: ## Start gowatch for hot-reload development
 	@gowatch 2>/dev/null || echo "gowatch not installed (install with: go install github.com/silentred/gowatch@latest)"
 

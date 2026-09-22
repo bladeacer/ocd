@@ -22,7 +22,8 @@ func NewStatCmd() *cobra.Command {
 selectors, CSS variables, color usage, etc.
 
 Results are printed to stdout and optionally exported as
-TOML, JSON, or YAML.
+TOML, JSON, or YAML to the current working directory by default.
+Use --output to specify a target directory.
 
 Configuration: --format and --output defaults may be set in a per-project
 config file in the working directory, or in the global config at
@@ -80,7 +81,7 @@ Direct command-line flags always take priority over config file values.`,
 	}
 
 	cmd.Flags().StringVarP(&format, "format", "f", "toml", "Export format: toml (default), json, or yaml")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
 	return cmd
 }
 

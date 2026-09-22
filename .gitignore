@@ -3,7 +3,7 @@
 .lccst
 ocd
 dist
-scripts
 *toml
 *json
 *yaml
+!.ocd.toml

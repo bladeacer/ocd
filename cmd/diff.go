@@ -59,7 +59,9 @@ Versions are auto-extracted if not already cached.
 If no arguments are provided, or --pick is used, an interactive
 version picker is launched.
 
-Use --tldr to print a summary of CSS changes and export to file.
+Use --tldr to print a summary of CSS changes and export to file
+in the current working directory by default. Use --tldr-output to
+specify a target directory.
 
 Configuration: defaults for the flags below may be set in a per-project
 config file in the working directory, or in the global config at
@@ -157,6 +159,6 @@ Direct command-line flags always take priority over config file values.`,
 	cmd.Flags().BoolVarP(&interactive, "pick", "p", false, "Launch interactive version picker")
 	cmd.Flags().BoolVar(&tldr, "tldr", false, "Print TLDR analysis and export to file")
 	cmd.Flags().StringVar(&tldrFormat, "tldr-format", "toml", "Export format: toml (default), json, or yaml")
-	cmd.Flags().StringVar(&tldrOutput, "tldr-output", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME)")
+	cmd.Flags().StringVar(&tldrOutput, "tldr-output", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
 	return cmd
 }

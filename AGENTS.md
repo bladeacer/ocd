@@ -23,6 +23,7 @@ ocd/
 │   ├── stat.go               # ocd stat <version>
 │   └── clean.go              # ocd clean [label]
 ├── docs/
+│   ├── CONFIG.md           # Full configuration reference
 │   └── changelogs/           # Versioned changelog documentation
 │       ├── index.md          # Changelog index with links to all versions
 │       ├── 0.1.0.md          # v0.1.0 changelog
@@ -61,6 +62,8 @@ ocd/
 │       ├── diffmodel_test.go # Tests for diff viewer
 │       ├── pickermodel.go    # Version picker model
 │       └── view.go           # Shared UI view helpers
+├── scripts/                  # Utility scripts (check_links.py, gen_structure.py)
+├── .ocd.toml             # Sample per-project config file (feature parity with CLI)
 ├── .obsidian_cache/          # Cached extracted CSS files
 ├── Makefile                  # Build, test, cover, fmt, lint targets
 ├── main.go                   # Application entry point
@@ -93,10 +96,16 @@ pass a marshal function, output directory, filename, and format. The helper
 handles `~/` and `$VAR` expansion, directory creation, and extension
 derivation.
 
+`stat`, `tldr`, and `check` all default file export to the current working
+directory when no output directory is configured via `--output` flag or
+the corresponding `*_dir` config key. Use `output_dir` in config as a
+global fallback.
+
 ### Changelogs
 
 Historical changelogs live at `docs/changelogs/`. Each version has its own
-markdown file with a link to the corresponding GitHub release. The index at
+markdown file with a link to the corresponding GitHub releases page.
+The `v0.4.0` release is pending (unreleased). The index at
 `docs/changelogs/index.md` provides an overview table with all versions.
 
 ## Building and Testing
@@ -107,6 +116,7 @@ make test        # Run all unit tests
 make cover       # Tests + coverage report
 make fmt         # go fmt + go vet
 make lint        # golangci-lint
+make check-links # Check all markdown files for broken links
 ```
 
 Tests should achieve at least 80% coverage across all packages.

@@ -154,8 +154,14 @@ not in the target.
 ## Configuration
 
 Defaults for the `--format` and `--output` flags on `diff`, `stat`, and
-`check` may be set in a configuration file. Files are TOML. Resolution order,
-from highest to lowest priority, is:
+`check` may be set in a configuration file. See [`.ocd.toml`](.ocd.toml)
+for a sample configuration file with all valid options. When no output
+directory is configured, file export defaults to the current working
+directory.
+
+Full configuration reference: [docs/CONFIG.md](docs/CONFIG.md).
+
+Files are TOML. Resolution order, from highest to lowest priority, is:
 
 1. Direct command-line flag value.
 2. Per-project config: `.ocd.toml` in the current working directory.

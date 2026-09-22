@@ -24,8 +24,9 @@ them against a local theme file. The report lists variables that are missing
 from the theme (present in the target) and variables that the theme defines
 that are not in the target.
 
-The report is printed to stdout by default. Use --output to also write it to
-a file. Use --silent to suppress the on-screen report.
+The report is printed to stdout by default. Use --output to write it
+to a specific directory. Use --silent to suppress the on-screen report.
+File export defaults to the current working directory.
 
 Examples:
   ocd check 1.12.7 ./my-theme.css
@@ -77,24 +78,32 @@ Examples:
 				fmt.Print(report.String())
 			}
 
-			if output != "" {
-				fname := fmt.Sprintf("ocd-check-%s", version)
-				exported, err := core.ExportFile(func() ([]byte, error) {
-					return marshalReport(report, format)
-				}, output, fname, format)
-				if err != nil {
-					return fmt.Errorf("export check: %w", err)
+			// Default to cwd if no output dir specified.
+			if output == "" {
+				wd, wdErr := os.Getwd()
+				if wdErr != nil {
+					output = "."
+				} else {
+					output = wd
 				}
-				fmt.Printf("Exported: %s\n", exported)
 			}
+
+			fname := fmt.Sprintf("ocd-check-%s", version)
+			exported, err := core.ExportFile(func() ([]byte, error) {
+				return marshalReport(report, format)
+			}, output, fname, format)
+			if err != nil {
+				return fmt.Errorf("export check: %w", err)
+			}
+			fmt.Printf("Exported: %s\n", exported)
 
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVarP(&format, "format", "f", "toml", "Export format: toml (default), json, or yaml")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME)")
-	cmd.Flags().BoolVarP(&silent, "silent", "s", false, "Suppress stdout report")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
+	cmd.Flags().BoolVarP(&silent, "silent", "s", false, "Suppress stdout report (file export still occurs)")
 	return cmd
 }
 
