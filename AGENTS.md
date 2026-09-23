@@ -6,8 +6,16 @@ Extract and diff `app.css` across Obsidian versions. Downloads Obsidian's ASAR
 bundle directly from GitHub releases - no Docker or Node.js needed.
 
 This project uses British English in its documentation, following the
-discipline of [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/)
-via the [SimpleEnglish](https://github.com/AminBlg/SimpleEnglish) skill.
+discipline of [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/).
+The STE skill is vendored locally at [`skills/simple-english/SKILL.md`](skills/simple-english/SKILL.md).
+
+All agent runs in this project should load the STE skill from `skills/simple-english/SKILL.md`
+before producing any documentation, prose, or replies. This is done by invoking the
+`simple-english` skill. The skill enforces plain, layman-readable English with
+short sentences, active voice, simple tenses, one word one meaning, condition
+before command, and every technical term defined at first use. Default mode is
+**Plain**; when STE, ASD-STE100, or compliance is named, **Strict** mode adds
+full vocabulary compliance from `skills/simple-english/references/strict-vocabulary.md`.
 
 ## Repository Structure
 
