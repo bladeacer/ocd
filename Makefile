@@ -52,8 +52,8 @@ tag: ## Bump version, commit, create and push an annotated git tag
 check-links: ## Check all markdown files for broken links
 	python3 scripts/check_links.py
 
-watch: ## Start gowatch for hot-reload development
-	@gowatch 2>/dev/null || echo "gowatch not installed (install with: go install github.com/silentred/gowatch@latest)"
+watch: ## Hot-reload the app on save (needs air)
+	air
 
 tidy: ## Tidy Go module dependencies
 	$(GO) mod tidy
@@ -62,6 +62,7 @@ clean: ## Remove build artifacts and cache
 	rm -f $(BINARY)
 	rm -f coverage.out
 	rm -rf .obsidian_cache
+	rm -rf bin build-errors.log
 
 snapshot: ## Test goreleaser locally (builds all platforms)
 	goreleaser release --snapshot --clean

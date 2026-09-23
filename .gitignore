@@ -7,3 +7,4 @@ dist
 *json
 *yaml
 !.ocd.toml
+tmp
