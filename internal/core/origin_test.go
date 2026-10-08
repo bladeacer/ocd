@@ -136,6 +136,48 @@ func TestSortVersions(t *testing.T) {
 	})
 }
 
+func TestStripCSSComments(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "no comments",
+			in:   ".foo { color: red; }",
+			want: ".foo { color: red; }",
+		},
+		{
+			name: "single comment",
+			in:   "/* .foo */ .bar { color: red; }",
+			want: " .bar { color: red; }",
+		},
+		{
+			name: "multi-line comment",
+			in:   "/* this is\na comment */ .bar { color: red; }",
+			want: " .bar { color: red; }",
+		},
+		{
+			name: "comment at end",
+			in:   ".foo { color: red; } /* trailing */",
+			want: ".foo { color: red; } ",
+		},
+		{
+			name: "empty string",
+			in:   "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripCSSComments(tt.in)
+			if got != tt.want {
+				t.Errorf("stripCSSComments(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestContainsSelector(t *testing.T) {
 	css := `.foo {
   color: red;
@@ -164,6 +206,21 @@ func TestContainsSelector(t *testing.T) {
 	if ContainsSelector("", ".foo") {
 		t.Error("expected empty css to return false")
 	}
+
+	t.Run("selector inside comment is ignored", func(t *testing.T) {
+		cssWithComment := `/* .messageBar { display: none; } */`
+		if ContainsSelector(cssWithComment, ".messageBar") {
+			t.Error("expected selector inside comment to not be found")
+		}
+	})
+
+	t.Run("selector found despite comment", func(t *testing.T) {
+		cssWithComment := `/* .messageBar { display: none; } */
+.messageBar { display: block; }`
+		if !ContainsSelector(cssWithComment, ".messageBar") {
+			t.Error("expected .messageBar to be found outside comment")
+		}
+	})
 }
 
 func TestContainsVariable(t *testing.T) {
@@ -187,6 +244,23 @@ func TestContainsVariable(t *testing.T) {
 	if ContainsVariable("", "--color-primary") {
 		t.Error("expected empty css to return false")
 	}
+
+	t.Run("variable inside comment is ignored", func(t *testing.T) {
+		cssWithComment := `/* --color-primary: red; */`
+		if ContainsVariable(cssWithComment, "--color-primary") {
+			t.Error("expected variable inside comment to not be found")
+		}
+	})
+
+	t.Run("variable found despite comment", func(t *testing.T) {
+		cssWithComment := `/* --color-primary: red; */
+:root {
+  --color-primary: blue;
+}`
+		if !ContainsVariable(cssWithComment, "--color-primary") {
+			t.Error("expected --color-primary to be found outside comment")
+		}
+	})
 }
 
 func TestListCachedVersions(t *testing.T) {
@@ -260,6 +334,61 @@ func TestListCachedVersions(t *testing.T) {
 			t.Errorf("expected 1 version, got %d: %v", len(versions), versions)
 		}
 	})
+}
+
+func TestMergeVersions(t *testing.T) {
+	tests := []struct {
+		name        string
+		rss         []string
+		cached      []string
+		want        []string
+		checkSubset bool
+	}{
+		{
+			name:   "both empty",
+			rss:    nil,
+			cached: nil,
+			want:   nil,
+		},
+		{
+			name:   "rss only",
+			rss:    []string{"1.0.0", "1.1.0"},
+			cached: nil,
+			want:   []string{"1.0.0", "1.1.0"},
+		},
+		{
+			name:   "cached only",
+			rss:    nil,
+			cached: []string{"1.0.0", "1.1.0"},
+			want:   []string{"1.0.0", "1.1.0"},
+		},
+		{
+			name:   "no overlap",
+			rss:    []string{"1.0.0", "1.1.0"},
+			cached: []string{"1.2.0", "1.3.0"},
+			want:   []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0"},
+		},
+		{
+			name:   "with duplicates",
+			rss:    []string{"1.0.0", "1.1.0"},
+			cached: []string{"1.1.0", "1.2.0"},
+			want:   []string{"1.0.0", "1.1.0", "1.2.0"},
+		},
+		{
+			name:   "empty slices",
+			rss:    []string{},
+			cached: []string{},
+			want:   nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MergeVersions(tt.rss, tt.cached)
+			if !stringsEqual(got, tt.want) {
+				t.Errorf("MergeVersions(%v, %v) = %v, want %v", tt.rss, tt.cached, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestFindOriginSelector(t *testing.T) {

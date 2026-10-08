@@ -69,13 +69,16 @@ Examples:
 			fetchResult := f.FetchAll(refresh)
 
 			var versions []string
+			var rssVersions []string
 			if len(fetchResult.RSS) > 0 {
-				versions = core.PublicDesktopVersions(fetchResult.RSS)
-			} else {
-				fallback, listErr := core.ListCachedVersions()
-				if listErr == nil {
-					versions = fallback
-				}
+				rssVersions = core.PublicDesktopVersions(fetchResult.RSS)
+			}
+			cachedVersions, listErr := core.ListCachedVersions()
+			if listErr == nil {
+				versions = core.MergeVersions(rssVersions, cachedVersions)
+			}
+			if len(versions) == 0 && len(rssVersions) > 0 {
+				versions = rssVersions
 			}
 
 			originResult := core.FindOrigin(target, isVariable, versions)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -63,11 +64,18 @@ func SortVersions(versions []string) []string {
 	return sorted
 }
 
+var cssCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/`)
+
+func stripCSSComments(s string) string {
+	return cssCommentRe.ReplaceAllString(s, "")
+}
+
 // ContainsSelector reports whether the given selector is defined in css.
 func ContainsSelector(css, selector string) bool {
 	if selector == "" {
 		return false
 	}
+	css = stripCSSComments(css)
 	for _, line := range strings.Split(css, "\n") {
 		if extractSelector(line) == selector {
 			return true
@@ -81,6 +89,7 @@ func ContainsVariable(css, name string) bool {
 	if name == "" {
 		return false
 	}
+	css = stripCSSComments(css)
 	for _, line := range strings.Split(css, "\n") {
 		m := cssVarNameRe.FindStringSubmatch(line)
 		if m != nil && m[1] == name {
@@ -108,6 +117,28 @@ func ListCachedVersions() ([]string, error) {
 		}
 	}
 	return versions, nil
+}
+
+// MergeVersions combines two version lists, removing duplicates.
+// Versions present in the cached list but missing from the RSS list are
+// included under the assumption that cached CSS was extracted from a public
+// desktop release.
+func MergeVersions(rssVersions, cachedVersions []string) []string {
+	seen := make(map[string]bool, len(rssVersions))
+	var result []string
+	for _, v := range rssVersions {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	for _, v := range cachedVersions {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 // FindOrigin scans the cached CSS for each version (sorted ascending) and

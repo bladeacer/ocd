@@ -434,6 +434,77 @@ func TestOriginCmdVariable(t *testing.T) {
 	}
 }
 
+func TestOriginCmdStaleRSS(t *testing.T) {
+	dir := t.TempDir()
+
+	origWd, _ := os.Getwd()
+	wd, err := os.MkdirTemp("", "ocd-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chdir(origWd)
+		_ = os.RemoveAll(wd)
+	}()
+	_ = os.Chdir(wd)
+
+	origCacheDir := cache.CacheDir
+	cache.CacheDir = dir
+	defer func() { cache.CacheDir = origCacheDir }()
+
+	cssDir := filepath.Join(dir, "css")
+	origCSSDir := core.CSSDir
+	core.CSSDir = cssDir
+	defer func() { core.CSSDir = origCSSDir }()
+
+	c, err := cache.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// RSS is stale: it has 1.0.0 and 1.1.0 but NOT 1.2.0 where the selector lives.
+	rssData := []models.RSSVersion{
+		{Version: "1.0.0", Type: models.Desktop, IsEarly: false},
+		{Version: "1.1.0", Type: models.Desktop, IsEarly: false},
+	}
+	if err := c.Set("rss_versions", rssData); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set("docker_versions", []models.DockerTag{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set("electron_versions", models.ElectronMap{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// CSS cache has 1.2.0 which is missing from RSS.
+	for _, v := range []string{"1.0.0", "1.1.0", "1.2.0"} {
+		verDir := filepath.Join(cssDir, v)
+		if err := os.MkdirAll(verDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		css := ".old { color: red; }"
+		if v == "1.2.0" {
+			css = ".messageBar { color: blue; }"
+		}
+		if err := os.WriteFile(filepath.Join(verDir, "app.css"), []byte(css), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cmd := NewOriginCmd()
+	cmd.SetArgs([]string{".messageBar"})
+	output := captureStdout(t, func() {
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "1.2.0") {
+		t.Errorf("expected 1.2.0 in output despite stale RSS, got %s", output)
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	old := os.Stdout
