@@ -35,6 +35,8 @@ stat_dir = "~/stats"
 output_dir = "~/out"
 check_format = "toml"
 check_dir = "~/check"
+origin_format = "json"
+origin_dir = "~/origin"
 `), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +78,12 @@ check_dir = "~/check"
 	}
 	if cfg.CheckDir != "~/check" {
 		t.Errorf("expected check_dir=~/check, got %q", cfg.CheckDir)
+	}
+	if cfg.OriginFormat != "json" {
+		t.Errorf("expected origin_format=json, got %q", cfg.OriginFormat)
+	}
+	if cfg.OriginDir != "~/origin" {
+		t.Errorf("expected origin_dir=~/origin, got %q", cfg.OriginDir)
 	}
 }
 
@@ -170,12 +178,17 @@ func TestConfigString(t *testing.T) {
 	cfg := &Config{}
 	cfg.TLDR = boolPtr(true)
 	cfg.TLDRFormat = "json"
+	cfg.OriginFormat = "json"
+	cfg.OriginDir = "~/origin"
 	s := cfg.String()
 	if s == "" {
 		t.Error("expected non-empty String()")
 	}
 	if !contains(s, "tldr") {
 		t.Errorf("expected String() to contain tldr, got %s", s)
+	}
+	if !contains(s, "origin_format") {
+		t.Errorf("expected String() to contain origin_format, got %s", s)
 	}
 }
 

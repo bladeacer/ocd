@@ -35,7 +35,15 @@ Unset fields keep their command default.
 |------|-----------|---------|-------------|
 | `--format` | `check_format` | `"toml"` | Export format: `toml`, `json`, or `yaml` |
 | `--output` | `check_dir` | `""` | Output directory for check exports. Falls back to cwd when empty. |
-| `--silent` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
+| `--output` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
+
+## origin
+
+| Flag | Config Key | Default | Description |
+|------|-----------|---------|-------------|
+| `--format` | `origin_format` | `"toml"` | Export format: `toml`, `json`, or `yaml` |
+| `--output` | `origin_dir` | `""` | Output directory for origin exports. Falls back to cwd when empty. |
+| `--refresh` | _(CLI only)_ | `false` | Force refresh metadata cache |
 
 ## Common
 

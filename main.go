@@ -33,6 +33,7 @@ and computing CSS diffs between versions.`,
 	root.AddCommand(cmd.NewCleanCmd())
 	root.AddCommand(cmd.NewStatCmd())
 	root.AddCommand(cmd.NewCheckCmd())
+	root.AddCommand(cmd.NewOriginCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

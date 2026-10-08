@@ -177,6 +177,8 @@ Example global config:
 stat_format = "json"
 stat_dir = "~/reports"
 tldr_dir = "~/reports"
+origin_format = "toml"
+origin_dir = "~/reports"
 ```
 
 Example per-project config:
@@ -196,6 +198,7 @@ tldr_format = "yaml"
 | `diff [a] [b]` | Interactive picker or direct diff with colored viewer |
 | `stat <ver>` | CSS composition stats (selectors, variables, colors) for a single version |
 | `check <ver> <theme>` | Compare a theme's CSS variables against a target version |
+| `origin <sel|var>` | Find the earliest public desktop version that introduced a selector or variable |
 | `clean` | Wipe `.obsidian_cache/` metadata and extracted CSS |
 
 ### Example output: Stat
@@ -274,6 +277,25 @@ version_b = "1.12.7"
   old_value = "calc(var(--view-header-height) + var(--header-top-offset))"
   new_value = "calc(var(--view-header-height) + var(--view-header-top-offset))"
 ```
+
+### Find selector or variable origin
+
+```bash
+ocd origin .messageBar                           # find earliest version with this selector
+ocd origin -- --my-var                           # find earliest version with this variable
+ocd origin ".my-selector" --format json --output ~/reports  # export result
+ocd origin ".my-selector" --refresh              # force refresh version metadata
+```
+
+Search cached `app.css` across public desktop Obsidian versions (from the
+RSS changelog) and report the earliest version where the given selector or
+CSS variable was first introduced. Targets starting with `--` are treated as
+CSS variables; use `--` as a separator to pass them as arguments.
+
+Results are printed to stdout and exported to the current working directory
+by default. Use `--output` or `origin_dir` in config to specify a target
+directory. Use `--format` or `origin_format` in config to choose between
+TOML (default), JSON, and YAML.
 
 ## How it works
 

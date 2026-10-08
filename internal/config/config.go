@@ -75,6 +75,10 @@ type Config struct {
 	StatFormat string `toml:"stat_format,omitempty"`
 	StatDir    string `toml:"stat_dir,omitempty"`
 
+	// Origin command defaults.
+	OriginFormat string `toml:"origin_format,omitempty"`
+	OriginDir    string `toml:"origin_dir,omitempty"`
+
 	// Common output defaults.
 	OutputDir string `toml:"output_dir,omitempty"`
 
@@ -176,6 +180,12 @@ func mergeInto(dst, src *Config) {
 	if src.StatDir != "" {
 		dst.StatDir = src.StatDir
 	}
+	if src.OriginFormat != "" {
+		dst.OriginFormat = src.OriginFormat
+	}
+	if src.OriginDir != "" {
+		dst.OriginDir = src.OriginDir
+	}
 	if src.OutputDir != "" {
 		dst.OutputDir = src.OutputDir
 	}
@@ -215,6 +225,12 @@ func (c *Config) String() string {
 	}
 	if c.StatDir != "" {
 		fmt.Fprintf(&b, " stat_dir=%q", c.StatDir)
+	}
+	if c.OriginFormat != "" {
+		fmt.Fprintf(&b, " origin_format=%q", c.OriginFormat)
+	}
+	if c.OriginDir != "" {
+		fmt.Fprintf(&b, " origin_dir=%q", c.OriginDir)
 	}
 	if c.OutputDir != "" {
 		fmt.Fprintf(&b, " output_dir=%q", c.OutputDir)

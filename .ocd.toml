@@ -28,6 +28,10 @@ stat_dir = "~/reports"
 check_format = "toml"
 check_dir = "~/reports"
 
+# origin command defaults
+origin_format = "toml"
+origin_dir = "~/reports"
+
 # Common output directory fallback for all commands
 output_dir = "~/reports"
 
