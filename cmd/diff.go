@@ -43,6 +43,14 @@ func ensureCSS(version string) error {
 	return err
 }
 
+// pickVersions launches the version picker. Tests replace it so the diff
+// command can be exercised without a terminal.
+var pickVersions = tui.PickVersions
+
+// runViewer shows the diff in the interactive viewer. Tests replace it so
+// the diff command can run without a terminal.
+var runViewer = tui.RunDiffViewer
+
 func NewDiffCmd() *cobra.Command {
 	var forceRefresh bool
 	var interactive bool
@@ -102,7 +110,7 @@ Direct command-line flags always take priority over config file values.`,
 				}
 				f := sources.NewFetcher(c)
 
-				versionA, versionB, err = tui.PickVersions(f, forceRefresh)
+				versionA, versionB, err = pickVersions(f, forceRefresh)
 				if err != nil {
 					return fmt.Errorf("picker: %w", err)
 				}
@@ -151,7 +159,7 @@ Direct command-line flags always take priority over config file values.`,
 				return nil
 			}
 
-			return tui.RunDiffViewer(result, cfg.DiffKeys)
+			return runViewer(result, cfg.DiffKeys)
 		},
 	}
 

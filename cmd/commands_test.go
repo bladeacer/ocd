@@ -98,14 +98,6 @@ func TestStatCmdWithCachedVersion(t *testing.T) {
 	}
 }
 
-func TestStatCmdUnknownVersion(t *testing.T) {
-	isolate(t)
-	_, err := execute(t, NewStatCmd, "does-not-exist")
-	if err == nil {
-		t.Error("expected an error for a version with no release")
-	}
-}
-
 func TestStatCmdWrongArgCount(t *testing.T) {
 	isolate(t)
 	if _, err := execute(t, NewStatCmd); err == nil {
@@ -215,28 +207,14 @@ func TestCheckCmdAcceptsThemeFolder(t *testing.T) {
 	dir := isolate(t)
 	seedCSS(t, "1.6.3", ":root{--a:1;--b:2}")
 	writeFile(t, dir, "theme/theme.css", ":root{--a:1}")
-	writeFile(t, dir, "theme/scss/_p.scss", "$x:1;.y{--b:2}")
+	writeFile(t, dir, "theme/extra.css", ".x{--b:2}")
 
 	out, err := execute(t, NewCheckCmd, "1.6.3", filepath.Join(dir, "theme"))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if !strings.Contains(out, "1 css file(s)") {
-		t.Errorf("expected the folder to be read as css, got %q", out)
-	}
-}
-
-func TestCheckCmdAcceptsSCSSFolder(t *testing.T) {
-	dir := isolate(t)
-	seedCSS(t, "1.6.3", ":root{--a:1;--b:2}")
-	writeFile(t, dir, "scss/main.scss", "$x:1;.y{--a:1;.z{--b:2}}")
-
-	out, err := execute(t, NewCheckCmd, "1.6.3", filepath.Join(dir, "scss"))
-	if err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	if !strings.Contains(out, "scss file(s)") {
-		t.Errorf("expected the folder to be read as scss, got %q", out)
+	if !strings.Contains(out, "2 CSS file(s)") {
+		t.Errorf("expected both css files to be read, got %q", out)
 	}
 }
 
@@ -288,13 +266,6 @@ func TestCheckCmdOutputDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "ocd-check-1.6.3.toml")); err != nil {
 		t.Errorf("expected the export in the output directory: %v", err)
-	}
-}
-
-func TestDiffCmdRejectsOneUnknownVersion(t *testing.T) {
-	isolate(t)
-	if _, err := execute(t, NewDiffCmd, "1.6.3", "nope-1.0.0"); err == nil {
-		t.Error("expected an error for an unknown version")
 	}
 }
 

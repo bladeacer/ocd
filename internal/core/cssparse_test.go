@@ -225,57 +225,6 @@ func TestReadThemeSingleFile(t *testing.T) {
 	}
 }
 
-func TestReadThemeFolderPrefersCSS(t *testing.T) {
-	root := writeTree(t, map[string]string{
-		"theme.css":        `body{--from-css:1;--shared:css}`,
-		"css/extra.css":    `.x{--from-extra:2}`,
-		"scss/main.scss":   `$sass-var: 3; .y{--from-scss:4}`,
-		"node_modules/p/x": `body{--from-node:5}`,
-	})
-
-	src, err := ReadTheme(root)
-	if err != nil {
-		t.Fatalf("ReadTheme: %v", err)
-	}
-	if src.Kind != "css" {
-		t.Errorf("Kind = %q, want css", src.Kind)
-	}
-	if src.Has("--from-scss") {
-		t.Error("SCSS must not be read when the folder has built CSS")
-	}
-	if src.Has("--from-node") {
-		t.Error("node_modules must be skipped")
-	}
-	if !src.Has("--from-css") || !src.Has("--from-extra") {
-		t.Errorf("missing CSS variables: %v", names(src.Vars))
-	}
-	if len(src.Vars) != 3 {
-		t.Errorf("got %d vars, want 3: %v", len(src.Vars), names(src.Vars))
-	}
-}
-
-func TestReadThemeFolderFallsBackToSCSS(t *testing.T) {
-	root := writeTree(t, map[string]string{
-		"scss/main.scss":       `$sass-only: 1;\n.a{--from-scss:2}`,
-		"scss/partial/_b.scss": `.b{--from-partial:3}`,
-		"README.md":            "not css",
-	})
-
-	src, err := ReadTheme(root)
-	if err != nil {
-		t.Fatalf("ReadTheme: %v", err)
-	}
-	if src.Kind != "scss" {
-		t.Errorf("Kind = %q, want scss", src.Kind)
-	}
-	if !src.Has("--from-scss") || !src.Has("--from-partial") {
-		t.Errorf("missing SCSS variables: %v", names(src.Vars))
-	}
-	if src.Has("--sass-only") {
-		t.Error("Sass variables are not custom properties and must be skipped")
-	}
-}
-
 func TestReadThemeFolderPrefersThemeCSSFirst(t *testing.T) {
 	root := writeTree(t, map[string]string{
 		"theme.css":   `body{--a:1}`,
@@ -292,18 +241,6 @@ func TestReadThemeFolderPrefersThemeCSSFirst(t *testing.T) {
 	}
 	if got := names(src.Vars); got[0] != "--a" {
 		t.Errorf("theme.css variables should come first, got %v", got)
-	}
-}
-
-func TestReadThemeFolderWithNothingToRead(t *testing.T) {
-	root := writeTree(t, map[string]string{"README.md": "hello"})
-
-	src, err := ReadTheme(root)
-	if err != nil {
-		t.Fatalf("ReadTheme: %v", err)
-	}
-	if src.Kind != "" || len(src.Files) != 0 {
-		t.Errorf("expected no sources, got kind=%q files=%v", src.Kind, src.Files)
 	}
 }
 
@@ -334,5 +271,112 @@ func TestReadThemeDedupesAcrossFiles(t *testing.T) {
 	}
 	if len(src.Vars) != 3 {
 		t.Errorf("got %d vars, want 3: %v", len(src.Vars), names(src.Vars))
+	}
+}
+
+func TestReadThemeFolderSkipsNoiseDirs(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"theme.css":              `body{--a:1}`,
+		"node_modules/dep/x.css": `body{--b:2}`,
+		".git/o.css":             `body{--c:3}`,
+		"dist/build.css":         `body{--d:4}`,
+		"sub/keep.css":           `body{--e:5}`,
+		"sub/notes.md":           "not css",
+		"sub/style.CSS":          `body{--f:6}`,
+	})
+
+	src, err := ReadTheme(root)
+	if err != nil {
+		t.Fatalf("ReadTheme: %v", err)
+	}
+	if len(src.Files) != 3 {
+		t.Fatalf("read %d files, want 3: %v", len(src.Files), src.Files)
+	}
+	for _, skipped := range []string{"--b", "--c", "--d"} {
+		if src.Has(skipped) {
+			t.Errorf("%s came from a directory that should be skipped", skipped)
+		}
+	}
+	for _, want := range []string{"--a", "--e", "--f"} {
+		if !src.Has(want) {
+			t.Errorf("%s should have been read", want)
+		}
+	}
+}
+
+func TestReadThemeFolderWithNoCSS(t *testing.T) {
+	root := writeTree(t, map[string]string{"README.md": "nothing", "src/main.scss": "$x:1;.y{--a:1}"})
+
+	src, err := ReadTheme(root)
+	if err != nil {
+		t.Fatalf("ReadTheme: %v", err)
+	}
+	if len(src.Files) != 0 {
+		t.Errorf("SCSS is no longer read, got %v", src.Files)
+	}
+	if len(src.Vars) != 0 {
+		t.Errorf("expected no variables, got %v", names(src.Vars))
+	}
+}
+
+func TestReadThemeKeepsSelectorIndex(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"theme.css":     `body{--a:1}.one{}`,
+		"css/extra.css": `.two{}`,
+	})
+
+	src, err := ReadTheme(root)
+	if err != nil {
+		t.Fatalf("ReadTheme: %v", err)
+	}
+	if src.Index == nil {
+		t.Fatal("Index must be kept for selector comparison")
+	}
+	if !src.Index.HasSelector(".one") || !src.Index.HasSelector(".two") {
+		t.Errorf("Index missing selectors: %v", src.Index.Selectors)
+	}
+}
+
+func TestParseCSSIgnoresControlBytes(t *testing.T) {
+	// Obsidian's app.css starts with NUL bytes before its licence comment.
+	idx := ParseCSS("\x00\x00/*\r\n * comment\r\n */\r\n:root{--a:1}")
+
+	if !idx.HasVariable("--a") {
+		t.Errorf("variable lost after control bytes: %v", idx.Variables)
+	}
+	if !idx.HasSelector(":root") {
+		t.Errorf("selector lost after control bytes: %v", idx.Selectors)
+	}
+	for sel := range idx.Selectors {
+		for i := 0; i < len(sel); i++ {
+			if sel[i] < 0x20 && sel[i] != ' ' {
+				t.Errorf("selector %q kept a control byte", sel)
+			}
+		}
+	}
+}
+
+func TestParseCSSSelectorLists(t *testing.T) {
+	idx := ParseCSS(`.a, .b {color:red}
+.c[data-x="p,q"], .d:hover{color:blue}`)
+
+	for _, sel := range []string{".a", ".b", `.c[data-x="p,q"]`, ".d:hover"} {
+		if !idx.HasSelector(sel) {
+			t.Errorf("selector %q not found; have %v", sel, idx.Selectors)
+		}
+	}
+	if idx.HasSelector(".a, .b") {
+		t.Error("a comma list must not be kept as one selector")
+	}
+}
+
+func TestParseCSSAtRuleNotASelector(t *testing.T) {
+	idx := ParseCSS(`@media (min-width: 100px){.inside{color:red}}@supports (display:grid){.grid{}}`)
+
+	if idx.HasSelector("@media (min-width: 100px)") {
+		t.Error("at-rules must not be recorded as selectors")
+	}
+	if !idx.HasSelector(".inside") || !idx.HasSelector(".grid") {
+		t.Errorf("rules inside at-rules must be found: %v", idx.Selectors)
 	}
 }

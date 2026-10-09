@@ -18,6 +18,21 @@ const searchQHello = "hello"
 func TestMain(m *testing.M) {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	defer func() { _ = os.Unsetenv("CLICOLOR_FORCE") }()
+
+	// The TLDR export writes to the working directory. Run from a scratch
+	// directory so a test that exports cannot leave files behind in the
+	// package source tree.
+	if wd, err := os.Getwd(); err == nil {
+		if tmp, tErr := os.MkdirTemp("", "ocd-tui-test-*"); tErr == nil {
+			if cErr := os.Chdir(tmp); cErr == nil {
+				defer func() { _ = os.Chdir(wd) }()
+				defer func() { _ = os.RemoveAll(tmp) }()
+			} else {
+				_ = os.RemoveAll(tmp)
+			}
+		}
+	}
+
 	os.Exit(m.Run())
 }
 

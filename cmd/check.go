@@ -19,6 +19,7 @@ func NewCheckCmd() *cobra.Command {
 	var silent bool
 	var compatMode string
 	var compatSweep bool
+	var noSelectors bool
 	var cacheDays int
 
 	cmd := &cobra.Command{
@@ -29,17 +30,18 @@ them against a local theme. The report lists variables that are missing
 from the theme (present in the target) and variables that the theme defines
 that are not in the target.
 
-The theme may be a single stylesheet or a folder. For a folder, the built CSS
-is used when present, because that is what Obsidian loads. When the folder
-holds no CSS, its SCSS sources are read instead, so a theme repository can be
-checked directly. Only CSS custom properties are compared; Sass variables
-such as $name are ignored, because Obsidian never sees them.
+The theme may be a single stylesheet or a folder. For a folder, every CSS
+file below it is read, with theme.css first. Only CSS custom properties are
+compared; Sass variables such as $name are ignored, because Obsidian never
+sees them.
 
 When --compat-mode is set (strict or relaxed), also run a compatibility
 check on the theme's CSS variables against the target version. By default
 the check searches the app.css versions already cached, so run 'ocd origin'
 or use --compat-sweep to cache every public desktop version first. In strict
 mode, an incompatible result yields a non-zero exit code.
+
+A selector comparison is also reported. Use --no-selectors to skip it.
 
 The report is printed to stdout by default. Use --output to write it
 to a specific directory. Use --silent to suppress the on-screen report.
@@ -48,11 +50,11 @@ File export defaults to the current working directory.
 Examples:
   ocd check 1.12.7 ./my-theme.css
   ocd check 1.12.7 ~/.config/obsidian/themes/flexcyon   # a theme folder
-  ocd check 1.12.7 ./my-theme.scss                       # SCSS sources
   ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
   ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
   ocd check 1.12.7 ./my-theme.css --compat-mode strict
-  ocd check 1.12.7 ./my-theme.css --compat-mode strict --compat-sweep`,
+  ocd check 1.12.7 ./my-theme.css --compat-mode strict --compat-sweep
+  ocd check 1.12.7 ./my-theme.css --no-selectors`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
@@ -64,7 +66,7 @@ Examples:
 			}
 
 			// CLI flag overrides config overrides default.
-			if format == "" && cfg.CheckFormat != "" {
+			if !cmd.Flags().Changed("format") && cfg.CheckFormat != "" {
 				format = cfg.CheckFormat
 			}
 			if format == "" {
@@ -99,15 +101,21 @@ Examples:
 				return fmt.Errorf("read theme %q: %w", themePath, err)
 			}
 			if len(theme.Vars) == 0 {
-				return fmt.Errorf("no CSS custom properties found in %q: give a .css file, a folder holding theme.css, or a folder of SCSS sources", themePath)
+				return fmt.Errorf("no CSS custom properties found in %q: give a .css file or a folder holding theme.css", themePath)
 			}
 			themeVars := theme.Vars
 			if !silent {
-				fmt.Fprintf(os.Stderr, "Theme: %d variables from %d %s file(s) in %s\n",
-					len(themeVars), len(theme.Files), themeKind(theme.Kind), themePath)
+				fmt.Fprintf(os.Stderr, "Theme: %d variables from %d CSS file(s) in %s\n",
+					len(themeVars), len(theme.Files), themePath)
 			}
 
 			report := core.CompareVariables(version, themePath, targetVars, themeVars)
+
+			var selectorReport *core.SelectorReport
+			if !noSelectors {
+				selectorReport = core.CompareSelectors(version, themePath,
+					core.ParseCSS(string(css)), theme.Index)
+			}
 
 			cachedVersions, _ := core.ListCachedVersions()
 
@@ -136,6 +144,10 @@ Examples:
 
 			if !silent {
 				fmt.Print(report.String())
+				if selectorReport != nil {
+					fmt.Println()
+					fmt.Print(selectorReport.String())
+				}
 			}
 
 			// Default to cwd if no output dir specified.
@@ -157,6 +169,17 @@ Examples:
 			}
 			fmt.Printf("Exported: %s\n", exported)
 
+			if selectorReport != nil {
+				selName := fmt.Sprintf("ocd-check-%s-selectors", version)
+				selPath, selErr := core.ExportFile(func() ([]byte, error) {
+					return marshalSelectors(selectorReport, format)
+				}, output, selName, format)
+				if selErr != nil {
+					return fmt.Errorf("export selector check: %w", selErr)
+				}
+				fmt.Printf("Exported: %s\n", selPath)
+			}
+
 			return nil
 		},
 	}
@@ -167,18 +190,19 @@ Examples:
 	cmd.Flags().StringVar(&compatMode, "compat-mode", "", "Compatibility mode: strict or relaxed")
 	cmd.Flags().BoolVar(&compatSweep, "compat-sweep", false, "Cache app.css for every public desktop version before the compatibility check, so the check covers the whole public history")
 	cmd.Flags().IntVar(&cacheDays, "cache-days", core.DefaultCacheDays, "Days a cached app.css stays fresh before it is downloaded again. 0 disables expiry.")
+	cmd.Flags().BoolVar(&noSelectors, "no-selectors", false, "Skip the selector comparison and its export")
 	return cmd
 }
 
-// themeKind names the kind of source a theme was read from, for output.
-func themeKind(kind string) string {
-	switch kind {
-	case "css":
-		return "css"
-	case "scss":
-		return "scss"
+// marshalSelectors renders the selector report in the chosen format.
+func marshalSelectors(r *core.SelectorReport, format string) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return r.MarshalJSON()
+	case "yaml", "yml":
+		return r.MarshalYAML()
 	default:
-		return "source"
+		return r.MarshalTOML()
 	}
 }
 

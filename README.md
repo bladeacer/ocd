@@ -148,7 +148,7 @@ ocd clean 1.12.7    # remove a single version
 ```bash
 ocd check 1.12.7 ./my-theme.css
 ocd check 1.12.7 ~/.config/obsidian/themes/flexcyon    # a theme folder
-ocd check 1.12.7 ./my-theme.scss                        # SCSS sources
+ocd check 1.12.7 ./my-theme.css --no-selectors
 ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
 ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
 ocd check 1.12.7 ./my-theme.css --compat-mode strict
@@ -160,11 +160,17 @@ against a local theme file. The report lists variables that are missing from
 the theme (present in the target) and variables that the theme defines that are
 not in the target.
 
-The theme may be a single stylesheet or a folder. For a folder, the built CSS
-is used when present, because that is what Obsidian loads. When the folder
-holds no CSS, its SCSS sources are read instead, so a theme repository can be
-checked directly. Only CSS custom properties are compared. Sass variables such
-as `$name` are ignored, because Obsidian never sees them.
+The theme may be a single stylesheet or a folder. For a folder, every CSS file
+below it is read, with `theme.css` first. Only CSS custom properties are
+compared.
+
+A selector report is printed too, with the exact match count and the count of
+target selectors a theme selector reaches. Use `--no-selectors` to skip it.
+
+SCSS sources are not read. A Sass file defines its palette as `$variables`
+that are injected at build time, and Obsidian never sees them, so comparing
+them gives results that look authoritative but are not. Build the theme first
+and point at the folder.
 
 When `--compat-mode` is set to `strict` or `relaxed`, the command also runs a
 compatibility check on the theme's CSS variables against the target version.

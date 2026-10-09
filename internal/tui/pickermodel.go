@@ -368,7 +368,7 @@ func (m *pickerModel) View() string {
 
 func PickVersions(f *sources.Fetcher, force bool) (string, string, error) {
 	m := NewPicker(f, force)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := newProgram(m)
 	final, err := p.Run()
 	if err != nil {
 		return "", "", err

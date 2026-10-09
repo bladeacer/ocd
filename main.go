@@ -15,7 +15,8 @@ var (
 	date    = "unknown"
 )
 
-func main() {
+// newRootCmd builds the root command with every subcommand attached.
+func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "ocd",
 		Short: "Track Obsidian versions, extract app.css, and diff CSS changes",
@@ -35,7 +36,16 @@ and computing CSS diffs between versions.`,
 	root.AddCommand(cmd.NewCheckCmd())
 	root.AddCommand(cmd.NewOriginCmd())
 
-	if err := root.Execute(); err != nil {
+	return root
+}
+
+// run executes the root command. main only turns its error into an exit code.
+func run() error {
+	return newRootCmd().Execute()
+}
+
+func main() {
+	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -67,12 +67,14 @@ func ParseCSS(src string) *CSSIndex {
 	}
 
 	addSelector := func() {
-		s := NormalizeSelector(string(sel))
-		flushSelector()
-		if s == "" || s[0] == '@' {
-			return
+		for _, s := range splitSelectorList(string(sel)) {
+			s = NormalizeSelector(s)
+			if s == "" || s[0] == '@' {
+				continue
+			}
+			idx.Selectors[s] = true
 		}
-		idx.Selectors[s] = true
+		flushSelector()
 	}
 
 	for i := 0; i < len(src); i++ {
@@ -115,6 +117,11 @@ func ParseCSS(src string) *CSSIndex {
 		case isCSSSpace(c):
 			sel = append(sel, c)
 
+		case isCSSControl(c):
+			// Obsidian's app.css begins with NUL bytes. A control byte is
+			// not part of any name, so drop it rather than letting it end
+			// up inside a selector.
+
 		case c == '-' && declStart && i+1 < len(src) && src[i+1] == '-':
 			name, value, next, ok := readCustomProp(src, i)
 			if !ok {
@@ -139,10 +146,43 @@ func ParseCSS(src string) *CSSIndex {
 
 // finishCSS records any selector text left at the end of the input.
 func finishCSS(idx *CSSIndex, sel []byte) *CSSIndex {
-	if s := NormalizeSelector(string(sel)); s != "" && s[0] != '@' {
+	for _, s := range splitSelectorList(string(sel)) {
+		s = NormalizeSelector(s)
+		if s == "" || s[0] == '@' {
+			continue
+		}
 		idx.Selectors[s] = true
 	}
 	return idx
+}
+
+// splitSelectorList breaks a comma-separated selector list into its parts.
+// A comma inside brackets, parentheses, or a quoted string does not split,
+// because `[data-x="a,b"]` is one attribute value.
+func splitSelectorList(s string) []string {
+	var parts []string
+	depth := 0
+	start := 0
+
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'':
+			i = skipString(s, i) - 1
+		case '(', '[':
+			depth++
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, s[start:])
+	return parts
 }
 
 // readCustomProp reads a custom property definition that starts at i. It
@@ -194,6 +234,12 @@ func isCSSSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f'
 }
 
+// isCSSControl reports whether a byte is a control character that is not
+// ordinary whitespace. Obsidian ships an app.css that starts with NUL bytes.
+func isCSSControl(c byte) bool {
+	return c < 0x20 && !isCSSSpace(c)
+}
+
 func isCSSNameByte(c byte) bool {
 	return c == '-' || c == '_' ||
 		(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
@@ -223,8 +269,8 @@ func NormalizeSelector(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// scssSkipDirs are directories that never hold theme source worth reading.
-var scssSkipDirs = map[string]bool{
+// skipDirs are directories that never hold theme CSS worth reading.
+var skipDirs = map[string]bool{
 	"node_modules":    true,
 	".git":            true,
 	".cache":          true,
@@ -243,8 +289,9 @@ type ThemeSource struct {
 	Files []string
 	// Vars holds every custom property found, in source order.
 	Vars []CSSVariable
-	// Kind is "css" or "scss", and is empty when no source was found.
-	Kind string
+	// Index is the merged parse of every stylesheet, kept so a selector
+	// comparison does not have to read the files a second time.
+	Index *CSSIndex
 }
 
 // Has reports whether the theme defines a custom property.
@@ -260,9 +307,9 @@ func (s *ThemeSource) Has(name string) bool {
 // ReadTheme collects the custom properties of a theme. The path may be a
 // single stylesheet or a folder.
 //
-// For a folder the built CSS wins, because that is what Obsidian loads. When
-// the folder holds no CSS, the SCSS sources are read instead. This supports
-// theme repositories that keep their source in `scss/` partials.
+// For a folder, every `*.css` file below it is read, with `theme.css` first
+// because that is the file Obsidian loads. Noise directories such as
+// `node_modules` are skipped.
 //
 // Only custom properties (`--name`) are collected. Sass variables (`$name`)
 // are skipped, because Obsidian never sees them.
@@ -280,34 +327,15 @@ func ReadTheme(path string) (*ThemeSource, error) {
 		return src, nil
 	}
 
-	cssFiles, err := collectFiles(path, ".css")
+	files, err := collectCSSFiles(path)
 	if err != nil {
 		return nil, err
 	}
-	if len(cssFiles) > 0 {
-		src.Kind = "css"
-		for _, f := range cssFiles {
-			if err := readThemeFile(src, f); err != nil {
-				return nil, err
-			}
+	for _, f := range files {
+		if err := readThemeFile(src, f); err != nil {
+			return nil, err
 		}
-		return src, nil
 	}
-
-	scssFiles, err := collectFiles(path, ".scss", ".sass")
-	if err != nil {
-		return nil, err
-	}
-	if len(scssFiles) > 0 {
-		src.Kind = "scss"
-		for _, f := range scssFiles {
-			if err := readThemeFile(src, f); err != nil {
-				return nil, err
-			}
-		}
-		return src, nil
-	}
-
 	return src, nil
 }
 
@@ -319,6 +347,11 @@ func readThemeFile(src *ThemeSource, path string) error {
 	}
 	idx := ParseCSS(string(data))
 	src.Files = append(src.Files, path)
+	if src.Index == nil {
+		src.Index = idx
+	} else {
+		src.Index.merge(idx)
+	}
 
 	seen := make(map[string]bool, len(src.Vars))
 	for _, v := range src.Vars {
@@ -334,27 +367,38 @@ func readThemeFile(src *ThemeSource, path string) error {
 	return nil
 }
 
-// collectFiles walks root and returns every file with one of the given
-// extensions, sorted, with noise directories skipped. A theme.css at the
-// root comes first, because it is the file Obsidian loads.
-func collectFiles(root string, exts ...string) ([]string, error) {
-	want := make(map[string]bool, len(exts))
-	for _, e := range exts {
-		want[e] = true
+// merge folds another parse of a stylesheet into this one.
+func (idx *CSSIndex) merge(other *CSSIndex) {
+	if other == nil {
+		return
 	}
+	for name, value := range other.Variables {
+		if _, seen := idx.Variables[name]; !seen {
+			idx.varOrder = append(idx.varOrder, name)
+		}
+		idx.Variables[name] = value
+	}
+	for sel := range other.Selectors {
+		idx.Selectors[sel] = true
+	}
+}
 
+// collectCSSFiles walks root and returns every CSS file below it, sorted,
+// with noise directories skipped. A theme.css at the root comes first,
+// because it is the file Obsidian loads.
+func collectCSSFiles(root string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if p != root && scssSkipDirs[d.Name()] {
+			if p != root && skipDirs[d.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if want[strings.ToLower(filepath.Ext(d.Name()))] {
+		if strings.EqualFold(filepath.Ext(d.Name()), ".css") {
 			files = append(files, p)
 		}
 		return nil

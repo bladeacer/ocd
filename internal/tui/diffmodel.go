@@ -291,6 +291,9 @@ func parseLeadingNum(s string) int {
 }
 
 func (m *diffModel) renderHeader() string {
+	if m.result == nil {
+		return "Diff: (no result)"
+	}
 	bump := core.SemverBump(m.result.VersionA, m.result.VersionB)
 	header := fmt.Sprintf("Diff: %s -> %s  (%s)", m.result.VersionA, m.result.VersionB, bump)
 	summary := m.summaryStyle.Render(
@@ -1642,7 +1645,7 @@ func (m *diffModel) renderHelp() string {
 
 func RunDiffViewer(result *models.DiffResult, keybinds config.DiffKeys) error {
 	m := NewDiffModel(result, keybinds)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := newProgram(m)
 	final, err := p.Run()
 	if err != nil {
 		return err

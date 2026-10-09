@@ -37,6 +37,7 @@ Unset fields keep their command default.
 | `--output` | `check_dir` | `""` | Output directory for check exports. Falls back to cwd when empty. |
 | `--silent` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
 | `--compat-mode` | `check_compat_mode` | `""` | Compatibility mode: `strict` or `relaxed`. When set, run `CheckCompatibility` on the theme's CSS variables against the target version, using the cached versions as the origin search space. In strict mode, an incompatible result yields a non-zero exit code. |
+| `--no-selectors` | _(CLI only)_ | `false` | Skip the selector comparison and its export |
 | `--compat-sweep` | _(CLI only)_ | `false` | Cache `app.css` for every public desktop version before the compatibility check, so the check covers the whole public history |
 | `--cache-days` | `cache_days` | `14` | Days a cached `app.css` stays fresh before it is downloaded again. `0` disables expiry |
 
@@ -105,13 +106,12 @@ one or two versions, or fetches on demand:
 | Given | What is read |
 |-------|--------------|
 | `theme.css` | that file |
-| a folder with CSS | every `*.css` under it, `theme.css` first |
-| a folder with no CSS | every `*.scss` and `*.sass` under it |
+| a folder | every `*.css` below it, `theme.css` first |
 
 `node_modules`, `.git`, `.cache`, `dist`, `build`, `vendor`, `coverage`, and
 `.obsidian_cache` are skipped. Only CSS custom properties (`--name`) are
 compared. Sass variables (`$name`) are ignored, because Obsidian never sees
-them.
+them, and `.scss` files are not read at all.
 
 ## diff_keys
 

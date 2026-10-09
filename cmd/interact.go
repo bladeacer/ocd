@@ -12,6 +12,12 @@ import (
 	"github.com/bladeacer/ocd/internal/tui"
 )
 
+// runInteract launches the interactive browser. Tests replace it so the
+// command can be exercised without a terminal.
+var runInteract = func(f *sources.Fetcher, force bool) (tui.Selection, error) {
+	return tui.New(f, force).Run()
+}
+
 func NewInteractCmd() *cobra.Command {
 	var forceRefresh bool
 
@@ -32,8 +38,7 @@ for CSS extraction and diffing.`,
 			}
 			f := sources.NewFetcher(c)
 
-			app := tui.New(f, forceRefresh)
-			selected, err := app.Run()
+			selected, err := runInteract(f, forceRefresh)
 			if err != nil {
 				return fmt.Errorf("tui error: %w", err)
 			}

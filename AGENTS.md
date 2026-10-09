@@ -44,7 +44,8 @@ ocd/
 │       ├── 0.5.0.md          # v0.5.0 changelog
 │       ├── 0.6.0.md          # v0.6.0 changelog
 │       ├── 0.7.0.md          # v0.7.0 changelog
-│       └── 0.8.0.md          # v0.8.0 changelog
+│       ├── 0.8.0.md          # v0.8.0 changelog
+│       └── 0.9.0.md          # v0.9.0 changelog
 ├── internal/
 │   ├── cache/                # Cache management for version metadata
 │   │   ├── cache.go          # Store with TTL-based expiry
@@ -185,11 +186,27 @@ instead of once per target, and versions are read in parallel
 
 ### Theme Sources
 
-`core.ReadTheme` accepts a stylesheet or a folder. For a folder the built CSS
-wins, because that is what Obsidian loads. Only when the folder holds no CSS
-are the SCSS sources read, which lets a theme repository be checked
-directly. Sass variables such as `$name` are skipped, because Obsidian never
-sees them.
+`core.ReadTheme` accepts a stylesheet or a folder. For a folder every `*.css`
+below it is read, with `theme.css` first, and noise directories such as
+`node_modules` are skipped.
+
+SCSS sources are deliberately not read. A Sass file defines its palette as
+`$variables` that are injected at build time, and Obsidian never sees them, so
+comparing them gave results that looked authoritative but were not.
+
+### Selector Matching
+
+Obsidian's `app.css` uses comma-separated selector lists and long descendant
+chains, so exact matching alone reports almost no overlap. A comma list is
+split into its parts at parse time, and `core.SelectorCovers` decides reach:
+a theme rule for `.workspace-leaf` reaches
+`.workspace-leaf.mod-active .cm-content`. A descendant combinator in the
+theme reaches a child or sibling combinator in the target; a child
+combinator does not.
+
+`check` reports both the exact match count and the covered count. Treat the
+covered number as indicative, not as a verdict: Obsidian's selectors are
+mostly CodeMirror internals that a theme rarely restyles one by one.
 
 ### Diff Viewer Keybinds
 

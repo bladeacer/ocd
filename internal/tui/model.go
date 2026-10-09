@@ -65,6 +65,17 @@ type dataLoadedMsg struct {
 
 type tickMsg struct{}
 
+// program is the part of tea.Program that the entry points use. Keeping it
+// behind a small interface lets tests drive a model without a terminal.
+type program interface {
+	Run() (tea.Model, error)
+}
+
+// newProgram starts a Bubble Tea program. Tests replace it.
+var newProgram = func(m tea.Model) program {
+	return tea.NewProgram(m, tea.WithAltScreen())
+}
+
 func New(f *sources.Fetcher, force bool) *model {
 	s := spinner.New()
 	s.Style = spinnerStyle
@@ -464,7 +475,7 @@ func (m *model) updateTableDimensions() {
 }
 
 func (m *model) Run() (Selection, error) {
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := newProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return Selection{}, err
