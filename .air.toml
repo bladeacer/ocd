@@ -1,0 +1,41 @@
+# air configuration for ocd development.
+# Run `air` in the repository root (or `make watch`) to rebuild and rerun
+# the CLI on save.
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "bin"
+
+[build]
+  args_bin = []
+  bin = "./bin/ocd"
+  cmd = "go build -o ./bin/ocd ."
+  delay = 1000
+  exclude_dir = ["assets", "bin", "docs", "testdata", "vendor"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = true
+  follow_symlink = true
+  full_bin = ""
+  include_dir = []
+  include_ext = ["go", "css", "toml", "yaml"]
+  kill_delay = "0s"
+  log = "build-errors.log"
+  max_build_errors = 10
+  send_interrupt = false
+  stop_on_root = true
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = false

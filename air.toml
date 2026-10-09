@@ -1,0 +1,44 @@
+# air configuration for ocd development.
+# Run `make watch` (or `air -c air.toml`) in the repository root to rebuild
+# and rerun the app on save. Air reads .air.toml by default, so the flag names
+# this file.
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "bin"
+
+[build]
+  args_bin = []
+  # entrypoint replaces the deprecated bin key. air runs the binary that the
+  # cmd builds. ocd is a single main package at the repository root.
+  entrypoint = ["./bin/ocd"]
+  cmd = "CGO_ENABLED=0 go build -o ./bin/ocd ."
+  delay = 1000
+  exclude_dir = ["bin", "dist", "docs", "scripts", "skills", "testdata", "vendor"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = true
+  follow_symlink = true
+  full_bin = ""
+  include_dir = []
+  include_ext = ["go", "toml", "yaml"]
+  kill_delay = "0s"
+  log = "build-errors.log"
+  max_build_errors = 10
+  send_interrupt = false
+  stop_on_root = true
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = false

@@ -73,7 +73,8 @@ ocd/
 ├── scripts/                  # Utility scripts (check_links.py, gen_structure.py)
 ├── .ocd.toml             # Sample per-project config file (feature parity with CLI)
 ├── .obsidian_cache/          # Cached extracted CSS files
-├── Makefile                  # Build, test, cover, fmt, lint targets
+├── Makefile                  # Build, test, cover, fmt, lint, watch targets
+├── air.toml                  # air hot-reload config used by `make watch`
 ├── main.go                   # Application entry point
 ├── go.mod                    # Go module definition
 ├── go.sum                    # Go module checksums
@@ -137,6 +138,7 @@ make cover       # Tests + coverage report
 make fmt         # go fmt + go vet
 make lint        # golangci-lint
 make check-links # Check all markdown files for broken links
+make watch       # Rebuild and rerun the app on save (needs air)
 ```
 
 Tests should achieve at least 80% coverage across all packages.

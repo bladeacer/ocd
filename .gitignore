@@ -1,10 +1,9 @@
 .obsidian_cache
 .headroom
 .lccst
-ocd
 dist
-*toml
+bin
+build-errors.log
 *json
 *yaml
-!.ocd.toml
 tmp

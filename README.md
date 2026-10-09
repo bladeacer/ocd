@@ -320,7 +320,15 @@ make cover-html  # tests + HTML coverage report in browser
 make fmt         # go fmt + go vet
 make lint        # golangci-lint
 make release-test  # goreleaser snapshot (no upload)
+make watch       # rebuild and rerun the app on save (needs air)
 make clean       # remove binary and cache
+```
+
+`make watch` uses [air](https://github.com/air-verse/air) and the file
+`air.toml`. Install air first:
+
+```bash
+go install github.com/air-verse/air@latest
 ```
 
 Tests cover RSS electron fill, Docker tag parsing, ASAR extraction,

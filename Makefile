@@ -53,7 +53,7 @@ check-links: ## Check all markdown files for broken links
 	python3 scripts/check_links.py
 
 watch: ## Hot-reload the app on save (needs air)
-	air
+	air -c air.toml
 
 tidy: ## Tidy Go module dependencies
 	$(GO) mod tidy
