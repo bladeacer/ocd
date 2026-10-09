@@ -4,16 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
 )
-
-// cssVarNameRe matches a CSS custom property definition: `--name: value;`.
-var cssVarNameRe = regexp.MustCompile(`^\s*(--[\w-]+)\s*:`)
 
 // CSSVariable holds the name and value of a single CSS custom property.
 type CSSVariable struct {
@@ -33,24 +29,10 @@ type VariableReport struct {
 }
 
 // ExtractCSSVariables parses CSS source and returns the custom properties
-// defined in it, in source order.
+// defined in it, in source order. It understands minified CSS, where many
+// declarations share one line.
 func ExtractCSSVariables(css string) []CSSVariable {
-	var out []CSSVariable
-	seen := make(map[string]bool)
-	for _, line := range strings.Split(css, "\n") {
-		m := cssVarNameRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		name := m[1]
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		val := extractVarValue(line, varSelectorRe)
-		out = append(out, CSSVariable{Name: name, Value: val})
-	}
-	return out
+	return ParseCSS(css).VariableList()
 }
 
 // VariableNames returns the names of the variables in order.
@@ -180,6 +162,7 @@ func (r *VariableReport) MarshalYAML() ([]byte, error) {
 }
 
 // ReadCSSVariables reads a CSS file from disk and returns its variables.
+// ReadCSSVariables returns the custom properties defined in one stylesheet.
 func ReadCSSVariables(path string) ([]CSSVariable, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

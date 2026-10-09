@@ -25,9 +25,15 @@ func NewCheckCmd() *cobra.Command {
 		Use:   "check <version> <theme.css>",
 		Short: "Check a theme's CSS variables against a target Obsidian version",
 		Long: `Extract the CSS variables from a target Obsidian version and compare
-them against a local theme file. The report lists variables that are missing
+them against a local theme. The report lists variables that are missing
 from the theme (present in the target) and variables that the theme defines
 that are not in the target.
+
+The theme may be a single stylesheet or a folder. For a folder, the built CSS
+is used when present, because that is what Obsidian loads. When the folder
+holds no CSS, its SCSS sources are read instead, so a theme repository can be
+checked directly. Only CSS custom properties are compared; Sass variables
+such as $name are ignored, because Obsidian never sees them.
 
 When --compat-mode is set (strict or relaxed), also run a compatibility
 check on the theme's CSS variables against the target version. By default
@@ -41,6 +47,8 @@ File export defaults to the current working directory.
 
 Examples:
   ocd check 1.12.7 ./my-theme.css
+  ocd check 1.12.7 ~/.config/obsidian/themes/flexcyon   # a theme folder
+  ocd check 1.12.7 ./my-theme.scss                       # SCSS sources
   ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
   ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
   ocd check 1.12.7 ./my-theme.css --compat-mode strict
@@ -86,9 +94,17 @@ Examples:
 			}
 
 			targetVars := core.ExtractCSSVariables(string(css))
-			themeVars, err := core.ReadCSSVariables(themePath)
+			theme, err := core.ReadTheme(themePath)
 			if err != nil {
-				return err
+				return fmt.Errorf("read theme %q: %w", themePath, err)
+			}
+			if len(theme.Vars) == 0 {
+				return fmt.Errorf("no CSS custom properties found in %q: give a .css file, a folder holding theme.css, or a folder of SCSS sources", themePath)
+			}
+			themeVars := theme.Vars
+			if !silent {
+				fmt.Fprintf(os.Stderr, "Theme: %d variables from %d %s file(s) in %s\n",
+					len(themeVars), len(theme.Files), themeKind(theme.Kind), themePath)
 			}
 
 			report := core.CompareVariables(version, themePath, targetVars, themeVars)
@@ -152,6 +168,18 @@ Examples:
 	cmd.Flags().BoolVar(&compatSweep, "compat-sweep", false, "Cache app.css for every public desktop version before the compatibility check, so the check covers the whole public history")
 	cmd.Flags().IntVar(&cacheDays, "cache-days", core.DefaultCacheDays, "Days a cached app.css stays fresh before it is downloaded again. 0 disables expiry.")
 	return cmd
+}
+
+// themeKind names the kind of source a theme was read from, for output.
+func themeKind(kind string) string {
+	switch kind {
+	case "css":
+		return "css"
+	case "scss":
+		return "scss"
+	default:
+		return "source"
+	}
 }
 
 // sweepAllVersions fetches the public desktop version list and makes sure

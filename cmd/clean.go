@@ -40,7 +40,7 @@ Examples:
 			if err := c.Clear(); err != nil {
 				return fmt.Errorf("clear cache: %w", err)
 			}
-			if err := os.RemoveAll(".obsidian_cache/css"); err != nil {
+			if err := os.RemoveAll(core.CSSDir); err != nil {
 				return fmt.Errorf("remove css dir: %w", err)
 			}
 			fmt.Println("Cache and extracted CSS cleared.")

@@ -115,6 +115,35 @@ func extractCSS(version string, force bool) (string, error) {
 	return destFile, nil
 }
 
+// ReleaseExists reports whether GitHub has an ASAR release for a version.
+//
+// It sends a HEAD request and follows redirects, so it costs a few hundred
+// bytes instead of a full 9 MB download. A sweep uses this to skip versions
+// with no release before it starts downloading anything.
+func ReleaseExists(version string) (bool, error) {
+	url := fmt.Sprintf(asarReleaseURL, version, version)
+
+	req, err := http.NewRequest(http.MethodHead, url, nil)
+	if err != nil {
+		return false, fmt.Errorf("build request for v%s: %w", version, err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("probe v%s: %w", version, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusNotFound:
+		return false, nil
+	default:
+		return false, fmt.Errorf("probe v%s: HTTP %d", version, resp.StatusCode)
+	}
+}
+
 // CSSPath returns the cache path of app.css for a version.
 func CSSPath(version string) string {
 	return filepath.Join(CSSDir, version, "app.css")

@@ -8,12 +8,14 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 // asarServer serves a valid ASAR bundle for every version in ok, a 404 for
-// every version in missing, and a 500 for every other version.
+// every version in missing, and a 500 for every other version. It answers
+// both the HEAD probe and the GET download.
 func asarServer(t *testing.T, ok, missing map[string]bool) (*httptest.Server, func()) {
 	t.Helper()
 	payload := buildMinimalASARGz(t)
@@ -43,6 +45,43 @@ func asarServer(t *testing.T, ok, missing map[string]bool) (*httptest.Server, fu
 		asarReleaseURL = origURL
 		httpClient = origClient
 	}
+}
+
+// countingServer counts GET downloads, which is what an actual download is.
+func countingServer(t *testing.T, versions []string, fail map[string]bool) (*httptest.Server, *int32) {
+	t.Helper()
+	payload := buildMinimalASARGz(t)
+	want := make(map[string]bool, len(versions))
+	for _, v := range versions {
+		want[v] = true
+	}
+
+	var gets int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		version := versionFromPath(r.URL.Path)
+		if r.Method == http.MethodHead {
+			if !want[version] {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		atomic.AddInt32(&gets, 1)
+		if fail[version] {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(payload)
+	}))
+
+	origURL := asarReleaseURL
+	origClient := httpClient
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
+	httpClient = ts.Client()
+	t.Cleanup(func() { asarReleaseURL = origURL; httpClient = origClient })
+
+	return ts, &gets
 }
 
 func versionFromPath(path string) string {
@@ -90,44 +129,24 @@ func TestEnsureAllCSSDownloadsEverything(t *testing.T) {
 
 func TestEnsureAllCSSSkipsFreshCache(t *testing.T) {
 	useTempCSSDir(t)
-	var mu sync.Mutex
-	hits := 0
-	payload := buildMinimalASARGz(t)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		hits++
-		mu.Unlock()
-		_, _ = w.Write(payload)
-	}))
+	versions := []string{"1.0.0"}
+	ts, gets := countingServer(t, versions, nil)
 	defer ts.Close()
 
-	origURL := asarReleaseURL
-	origClient := httpClient
-	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
-	httpClient = ts.Client()
-	defer func() { asarReleaseURL = origURL; httpClient = origClient }()
+	res := EnsureAllCSS(SweepOptions{Versions: versions})
 
-	res := EnsureAllCSS(SweepOptions{Versions: []string{"1.0.0"}})
-
-	mu.Lock()
-	first := hits
-	mu.Unlock()
-	if first != 1 {
-		t.Fatalf("expected 1 download on first sweep, got %d", first)
+	if got := atomic.LoadInt32(gets); got != 1 {
+		t.Fatalf("expected 1 download on first sweep, got %d", got)
 	}
 	if res.Downloaded != 1 {
 		t.Fatalf("Downloaded = %d, want 1", res.Downloaded)
 	}
 
 	// A second sweep with a fresh entry must not touch the network.
-	res = EnsureAllCSS(SweepOptions{Versions: []string{"1.0.0"}, CacheDays: DefaultCacheDays})
+	res = EnsureAllCSS(SweepOptions{Versions: versions, CacheDays: DefaultCacheDays})
 
-	mu.Lock()
-	second := hits
-	mu.Unlock()
-	if second != 1 {
-		t.Errorf("expected no extra download, got %d total", second)
+	if got := atomic.LoadInt32(gets); got != 1 {
+		t.Errorf("expected no extra download, got %d total", got)
 	}
 	if res.Cached != 1 || res.Downloaded != 0 {
 		t.Errorf("unexpected counts: %+v", res)
@@ -136,25 +155,11 @@ func TestEnsureAllCSSSkipsFreshCache(t *testing.T) {
 
 func TestEnsureAllCSSExpiredEntryIsDownloadedAgain(t *testing.T) {
 	useTempCSSDir(t)
-	var mu sync.Mutex
-	hits := 0
-	payload := buildMinimalASARGz(t)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		hits++
-		mu.Unlock()
-		_, _ = w.Write(payload)
-	}))
+	versions := []string{"1.0.0"}
+	ts, gets := countingServer(t, versions, nil)
 	defer ts.Close()
 
-	origURL := asarReleaseURL
-	origClient := httpClient
-	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
-	httpClient = ts.Client()
-	defer func() { asarReleaseURL = origURL; httpClient = origClient }()
-
-	EnsureAllCSS(SweepOptions{Versions: []string{"1.0.0"}})
+	EnsureAllCSS(SweepOptions{Versions: versions})
 
 	// Age the cached file past the cache window.
 	old := time.Now().Add(-30 * 24 * time.Hour)
@@ -165,13 +170,10 @@ func TestEnsureAllCSSExpiredEntryIsDownloadedAgain(t *testing.T) {
 		t.Fatal("entry should be stale after 30 days with a 14 day window")
 	}
 
-	res := EnsureAllCSS(SweepOptions{Versions: []string{"1.0.0"}, CacheDays: 14})
+	res := EnsureAllCSS(SweepOptions{Versions: versions, CacheDays: 14})
 
-	mu.Lock()
-	total := hits
-	mu.Unlock()
-	if total != 2 {
-		t.Errorf("expected a second download, got %d total", total)
+	if got := atomic.LoadInt32(gets); got != 2 {
+		t.Errorf("expected a second download, got %d total", got)
 	}
 	if res.Downloaded != 1 {
 		t.Errorf("Downloaded = %d, want 1", res.Downloaded)
@@ -254,38 +256,129 @@ func TestEnsureAllCSSEmptyVersions(t *testing.T) {
 	}
 }
 
-func TestEnsureAllCSSProgressRunsOncePerVersion(t *testing.T) {
+func TestEnsureAllCSSProgressRunsOnceAtEnd(t *testing.T) {
 	useTempCSSDir(t)
 	ts, cleanup := asarServer(t, map[string]bool{"1.0.0": true, "1.1.0": true, "1.2.0": true}, nil)
 	defer cleanup()
 	defer ts.Close()
 
-	var mu sync.Mutex
-	seen := map[int]int{}
+	var calls int
+	var seen *SweepResult
 
 	res := EnsureAllCSS(SweepOptions{
 		Versions:    []string{"1.0.0", "1.1.0", "1.2.0"},
 		Concurrency: 1,
-		Progress: func(done, total int, version string, status SweepStatus, err error) {
-			mu.Lock()
-			defer mu.Unlock()
-			if total != 3 {
-				t.Errorf("total = %d, want 3", total)
-			}
-			if err != nil {
-				t.Errorf("unexpected error for %s: %v", version, err)
-			}
-			seen[done]++
+		Progress: func(r *SweepResult) {
+			calls++
+			seen = r
 		},
 	})
 
-	mu.Lock()
-	defer mu.Unlock()
-	if len(seen) != 3 {
-		t.Errorf("progress fired %d times, want 3", len(seen))
+	if calls != 1 {
+		t.Errorf("progress called %d times, want 1", calls)
 	}
-	if res.Requested != 3 {
-		t.Errorf("Requested = %d, want 3", res.Requested)
+	if seen == nil {
+		t.Fatal("progress did not receive a result")
+	}
+	if seen.Requested != 3 {
+		t.Errorf("Requested = %d, want 3", seen.Requested)
+	}
+	if res.Downloaded != 3 {
+		t.Errorf("Downloaded = %d, want 3", res.Downloaded)
+	}
+}
+
+func TestEnsureAllCSSDownloadsInAscendingVersionOrder(t *testing.T) {
+	useTempCSSDir(t)
+	versions := []string{"1.10.0", "1.2.0", "1.9.0", "0.15.0", "1.11.0"}
+	ts, cleanup := asarServer(t, map[string]bool{
+		"1.10.0": true, "1.2.0": true, "1.9.0": true, "0.15.0": true, "1.11.0": true,
+	}, nil)
+	defer cleanup()
+	defer ts.Close()
+
+	res := EnsureAllCSS(SweepOptions{Versions: versions, Concurrency: 1})
+
+	want := []string{"0.15.0", "1.2.0", "1.9.0", "1.10.0", "1.11.0"}
+	if len(res.DownloadedVersions) != len(want) {
+		t.Fatalf("DownloadedVersions = %v, want %v", res.DownloadedVersions, want)
+	}
+	for i := range want {
+		if res.DownloadedVersions[i] != want[i] {
+			t.Fatalf("DownloadedVersions = %v, want %v", res.DownloadedVersions, want)
+		}
+	}
+}
+
+func TestEnsureAllCSSSkipsUnavailableBeforeDownloading(t *testing.T) {
+	useTempCSSDir(t)
+	// Only 1.0.0 and 1.1.0 have a release, so only these get downloaded.
+	ts, gets := countingServer(t, []string{"1.0.0", "1.1.0"}, nil)
+	defer ts.Close()
+
+	versions := []string{"0.0.1", "1.0.0", "0.0.2", "1.1.0", "0.0.3"}
+	var log bytes.Buffer
+	res := EnsureAllCSS(SweepOptions{Versions: versions, Log: &log})
+
+	if got := atomic.LoadInt32(gets); got != 2 {
+		t.Errorf("expected 2 downloads, got %d", got)
+	}
+	if res.Unavailable != 3 {
+		t.Fatalf("Unavailable = %d, want 3", res.Unavailable)
+	}
+	want := []string{"0.0.1", "0.0.2", "0.0.3"}
+	for i, v := range want {
+		if res.UnavailableVersions[i] != v {
+			t.Fatalf("UnavailableVersions = %v, want %v", res.UnavailableVersions, want)
+		}
+	}
+	if !strings.Contains(log.String(), "Skipping 3 versions with no GitHub release") {
+		t.Errorf("expected a skip summary, got %q", log.String())
+	}
+	for _, v := range want {
+		if CSSCached(v) {
+			t.Errorf("%s must not be cached", v)
+		}
+	}
+}
+
+func TestReleaseExists(t *testing.T) {
+	useTempCSSDir(t)
+	ts, cleanup := asarServer(t, map[string]bool{"1.0.0": true}, map[string]bool{"9.9.9": true})
+	defer cleanup()
+	defer ts.Close()
+
+	ok, err := ReleaseExists("1.0.0")
+	if err != nil || !ok {
+		t.Errorf("ReleaseExists(1.0.0) = %v, %v; want true, nil", ok, err)
+	}
+
+	ok, err = ReleaseExists("9.9.9")
+	if err != nil || ok {
+		t.Errorf("ReleaseExists(9.9.9) = %v, %v; want false, nil", ok, err)
+	}
+}
+
+func TestProbeReleasesKeepsVersionsWhenProbeFails(t *testing.T) {
+	useTempCSSDir(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	origURL := asarReleaseURL
+	origClient := httpClient
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
+	httpClient = ts.Client()
+	defer func() { asarReleaseURL = origURL; httpClient = origClient }()
+
+	available, skipped := probeReleases([]string{"1.0.0"}, 1)
+
+	if len(skipped) != 0 {
+		t.Errorf("a failing probe must not mark a version as unavailable, got %v", skipped)
+	}
+	if len(available) != 1 {
+		t.Errorf("available = %v, want the version kept for the download stage", available)
 	}
 }
 

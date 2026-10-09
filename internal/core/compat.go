@@ -38,6 +38,11 @@ type CompatCheckResult struct {
 	AllChecked    []TargetOrigin `json:"all_checked,omitempty" yaml:"all_checked,omitempty" toml:"all_checked,omitempty"`
 }
 
+// FindOrigins reports, for every target, the versions where it appears.
+//
+// Each version is read and parsed once, in parallel, and the result is a
+// lookup per target. Parsing the file once per target instead would make a
+// theme with hundreds of variables quadratic in the number of variables.
 func FindOrigins(targets []string, isVariables bool, versions []string) []TargetOrigin {
 	kind := "selector"
 	if isVariables {
@@ -52,39 +57,56 @@ func FindOrigins(targets []string, isVariables bool, versions []string) []Target
 			Found: false,
 		}
 	}
-
-	targetSet := make(map[string]int, len(targets))
-	for i, t := range targets {
-		targetSet[t] = i
+	if len(targets) == 0 || len(versions) == 0 {
+		return results
 	}
 
 	sorted := SortVersions(versions)
-	for _, v := range sorted {
-		cssPath := filepath.Join(CSSDir, v, "app.css")
-		cssBytes, err := os.ReadFile(cssPath)
-		if err != nil {
+
+	// presence[i][j] reports whether target j is defined in version i.
+	presence := make([][]bool, len(sorted))
+	ParallelFor(len(sorted), DefaultSweepConcurrency, func(i int) {
+		row := scanTargets(sorted[i], targets, isVariables)
+		presence[i] = row
+	})
+
+	for i, v := range sorted {
+		row := presence[i]
+		if row == nil {
 			continue
 		}
-		cssStr := stripCSSComments(string(cssBytes))
-		for target, idx := range targetSet {
-			if results[idx].Found {
-				results[idx].Versions = append(results[idx].Versions, v)
+		for j, present := range row {
+			if !present {
 				continue
 			}
-			var present bool
-			if isVariables {
-				present = ContainsVariable(cssStr, target)
-			} else {
-				present = ContainsSelector(cssStr, target)
+			if !results[j].Found {
+				results[j].Found = true
+				results[j].Introduced = v
 			}
-			if present {
-				results[idx].Found = true
-				results[idx].Introduced = v
-				results[idx].Versions = append(results[idx].Versions, v)
-			}
+			results[j].Versions = append(results[j].Versions, v)
 		}
 	}
 	return results
+}
+
+// scanTargets parses one version and reports which targets it defines. It
+// returns nil when the version has no cached CSS.
+func scanTargets(version string, targets []string, isVariables bool) []bool {
+	data, err := os.ReadFile(filepath.Join(CSSDir, version, "app.css"))
+	if err != nil {
+		return nil
+	}
+	idx := ParseCSS(string(data))
+
+	row := make([]bool, len(targets))
+	for i, t := range targets {
+		if isVariables {
+			row[i] = idx.HasVariable(t)
+		} else {
+			row[i] = idx.HasSelector(t)
+		}
+	}
+	return row
 }
 
 func CheckCompatibility(themeTargets []string, isVariables bool, targetVersion string, mode CompatMode, versions []string) *CompatCheckResult {

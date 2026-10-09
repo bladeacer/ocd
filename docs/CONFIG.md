@@ -80,9 +80,38 @@ because Obsidian can republish or correct a release. Use `--cache-days` to
 change the age, `--refresh` to download everything again now, and
 `ocd clean <version>` to drop a single entry.
 
-Versions with no GitHub release are reported as `unavailable` and skipped.
-They are checked again on the next sweep, so a release that appears later is
-picked up without any action.
+The sweep checks each version with a HEAD request before downloading it, and
+skips the versions with no GitHub release. About 10 of the 108 public desktop
+versions have no release, so this avoids a wasted download for each of them.
+The versions that are downloaded are fetched in ascending version order.
+
+## Which commands prefetch
+
+Only `origin` fetches the whole history, because its answer depends on every
+version rather than on the ones already cached. Everything else either needs
+one or two versions, or fetches on demand:
+
+| Command | Fetches every version |
+|---------|-----------------------|
+| `origin` | yes |
+| `check --compat-mode` | only with `--compat-sweep` |
+| `check`, `stat`, `extract`, `diff` | no |
+| `interact` | no |
+
+## Theme sources
+
+`ocd check` accepts a stylesheet or a folder.
+
+| Given | What is read |
+|-------|--------------|
+| `theme.css` | that file |
+| a folder with CSS | every `*.css` under it, `theme.css` first |
+| a folder with no CSS | every `*.scss` and `*.sass` under it |
+
+`node_modules`, `.git`, `.cache`, `dist`, `build`, `vendor`, `coverage`, and
+`.obsidian_cache` are skipped. Only CSS custom properties (`--name`) are
+compared. Sass variables (`$name`) are ignored, because Obsidian never sees
+them.
 
 ## diff_keys
 

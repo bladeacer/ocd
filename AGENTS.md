@@ -43,7 +43,8 @@ ocd/
 │       ├── 0.4.0.md          # v0.4.0 changelog
 │       ├── 0.5.0.md          # v0.5.0 changelog
 │       ├── 0.6.0.md          # v0.6.0 changelog
-│       └── 0.7.0.md          # v0.7.0 changelog
+│       ├── 0.7.0.md          # v0.7.0 changelog
+│       └── 0.8.0.md          # v0.8.0 changelog
 ├── internal/
 │   ├── cache/                # Cache management for version metadata
 │   │   ├── cache.go          # Store with TTL-based expiry
@@ -54,6 +55,8 @@ ocd/
 │   ├── core/                 # Shared business logic
 │   │   ├── asar.go           # ASAR archive parsing
 │   │   ├── compat.go         # Theme compatibility checking
+│   │   ├── cssparse.go       # CSS scanner, ParseCSS and ReadTheme
+│   │   ├── cssparse_test.go  # Tests for the CSS scanner and theme loader
 │   │   ├── diff.go           # DiffCSS and related helpers
 │   │   ├── diff_test.go      # Tests for CSS diffing
 │   │   ├── export.go         # Generalised ExportFile helper
@@ -127,18 +130,66 @@ global fallback.
 ### Version Sweep
 
 `origin` and `check --compat-sweep` need the whole public history to answer
-correctly, so they call `core.EnsureAllCSS` before searching. The sweep
-downloads the versions that are missing or expired, 8 at a time, and writes
-progress to stderr.
+correctly, so they call `core.EnsureAllCSS` before searching.
+
+Prefetching every version is only correct where the answer depends on the
+whole history. Elsewhere it would be a large cost for no gain:
+
+| Command | Prefetch | Why |
+|---------|----------|-----|
+| `origin` | always | The answer depends on every version, not the cached few |
+| `check --compat-mode` | opt-in, `--compat-sweep` | Same search space as origin, but `check` is often used in scripts where a 900 MB first run is unwelcome |
+| `diff`, `tldr` | never | Two versions only |
+| `stat` | never | One version only |
+| `extract` | never | One version, and it is the command that fetches |
+| `interact` | never | Needs the version list, not the CSS |
+
+The sweep runs in two phases. First it probes every version that needs a
+download with a HEAD request, and drops the ones with no GitHub release. Then
+it downloads the rest in ascending version order, several at a time. Probing
+first matters because about 10 of the 108 public desktop versions have no
+release, and a failed download would otherwise waste a full transfer each.
 
 Freshness uses the modification time of the cached `app.css`. There is no
 separate metadata file, so the cache has one source of truth. `cache_days`
 sets the age and defaults to 14 days. `--refresh` forces a full re-download.
 A version with no GitHub release returns `core.ErrNoRelease` and is counted
-as unavailable, not as a failure.
+as unavailable, not as a failure. Those versions are probed again next run,
+so a release that appears later is picked up without any action.
 
-Analysis commands (`stat`, `diff`, `check`) do not sweep. They reuse the
-cached copy of the one or two versions they need.
+### CSS Parsing
+
+`core.ParseCSS` is a byte scanner, not a line or regex reader. Themes are
+often minified, with many declarations on one line, so line-based matching
+misses almost everything.
+
+A custom property is only recorded where a declaration can start, that is
+after a brace or a semicolon. That single rule is what makes the scanner
+robust against quoted text: a `--name:` inside a string can never be at a
+declaration start, so even a string that runs for thousands of bytes cannot
+hide the declarations after it.
+
+Three escapes matter and each one is a regression test:
+
+- `/* */` comments are skipped whole.
+- A backslash outside a string escapes the next byte. Themes use `\"` inside
+  attribute selectors such as `[data-task=\"]`. Reading that quote as a
+  string start swallowed 41 KB of a real theme and hid every declaration
+  after it.
+- A string ends at an unescaped newline, as CSS requires. Themes use
+  backslash-newline continuations for multi-line ASCII art.
+
+Parsed CSS gives O(1) lookups, so `FindOrigins` parses each version once
+instead of once per target, and versions are read in parallel
+(`core.ParallelFor`). On the flexcyon theme, 742 KB parses in about 6 ms.
+
+### Theme Sources
+
+`core.ReadTheme` accepts a stylesheet or a folder. For a folder the built CSS
+wins, because that is what Obsidian loads. Only when the folder holds no CSS
+are the SCSS sources read, which lets a theme repository be checked
+directly. Sass variables such as `$name` are skipped, because Obsidian never
+sees them.
 
 ### Diff Viewer Keybinds
 

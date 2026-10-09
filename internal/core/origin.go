@@ -76,13 +76,7 @@ func ContainsSelector(css, selector string) bool {
 	if selector == "" {
 		return false
 	}
-	css = stripCSSComments(css)
-	for _, line := range strings.Split(css, "\n") {
-		if extractSelector(line) == selector {
-			return true
-		}
-	}
-	return false
+	return ParseCSS(css).HasSelector(selector)
 }
 
 // ContainsVariable reports whether the given CSS variable name is defined in css.
@@ -90,14 +84,7 @@ func ContainsVariable(css, name string) bool {
 	if name == "" {
 		return false
 	}
-	css = stripCSSComments(css)
-	for _, line := range strings.Split(css, "\n") {
-		m := cssVarNameRe.FindStringSubmatch(line)
-		if m != nil && m[1] == name {
-			return true
-		}
-	}
-	return false
+	return ParseCSS(css).HasVariable(name)
 }
 
 // ListCachedVersions returns the version labels for which CSS has been
