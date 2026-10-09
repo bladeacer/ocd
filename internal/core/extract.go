@@ -99,11 +99,11 @@ func ExtractCSS(version string) (string, error) {
 	tmpPath := tmpAsar.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 
-		if _, err := io.Copy(tmpAsar, gzReader); err != nil {
-			_ = tmpAsar.Close()
-			return "", fmt.Errorf("write asar for v%s: %w", version, err)
-		}
+	if _, err := io.Copy(tmpAsar, gzReader); err != nil {
 		_ = tmpAsar.Close()
+		return "", fmt.Errorf("write asar for v%s: %w", version, err)
+	}
+	_ = tmpAsar.Close()
 
 	if err := extractAppCSSFromASAR(tmpPath, destFile); err != nil {
 		return "", fmt.Errorf("extract app.css for v%s: %w", version, err)

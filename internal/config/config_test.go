@@ -34,9 +34,10 @@ stat_format = "yaml"
 stat_dir = "~/stats"
 output_dir = "~/out"
 check_format = "toml"
-check_dir = "~/check"
-origin_format = "json"
-origin_dir = "~/origin"
+	check_dir = "~/check"
+	check_compat_mode = "strict"
+	origin_format = "json"
+	origin_dir = "~/origin"
 `), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +79,9 @@ origin_dir = "~/origin"
 	}
 	if cfg.CheckDir != "~/check" {
 		t.Errorf("expected check_dir=~/check, got %q", cfg.CheckDir)
+	}
+	if cfg.CheckCompatMode != "strict" {
+		t.Errorf("expected check_compat_mode=strict, got %q", cfg.CheckCompatMode)
 	}
 	if cfg.OriginFormat != "json" {
 		t.Errorf("expected origin_format=json, got %q", cfg.OriginFormat)

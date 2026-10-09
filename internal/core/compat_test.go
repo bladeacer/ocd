@@ -343,6 +343,42 @@ func TestCompatCheckResultStringWithUnknown(t *testing.T) {
 	}
 }
 
+func TestCompatCheckResultStringWarningsOnly(t *testing.T) {
+	r := &CompatCheckResult{
+		TargetVersion: "1.0.0",
+		Mode:          "relaxed",
+		Compatible:    true,
+		Warnings: []TargetOrigin{
+			{Name: ".bar", Kind: "selector", Introduced: "1.1.0", Found: true},
+		},
+		AllChecked: []TargetOrigin{
+			{Name: ".bar", Kind: "selector", Introduced: "1.1.0", Found: true},
+		},
+	}
+	s := r.String()
+	if !strings.Contains(s, "compatible") {
+		t.Errorf("expected compatible in output, got %s", s)
+	}
+	if !strings.Contains(s, "Warnings") {
+		t.Errorf("expected warnings section in output, got %s", s)
+	}
+}
+
+func TestCompatCheckResultStringAllGood(t *testing.T) {
+	r := &CompatCheckResult{
+		TargetVersion: "1.0.0",
+		Mode:          "strict",
+		Compatible:    true,
+		AllChecked: []TargetOrigin{
+			{Name: ".foo", Kind: "selector", Introduced: "1.0.0", Found: true},
+		},
+	}
+	s := r.String()
+	if !strings.Contains(s, "All targets were introduced at or before the target version") {
+		t.Errorf("expected all-good summary, got %s", s)
+	}
+}
+
 func TestCompatCheckResultMarshalJSON(t *testing.T) {
 	r := &CompatCheckResult{
 		TargetVersion: "1.0.0",
@@ -388,7 +424,7 @@ func TestCompatCheckResultMarshalTOML(t *testing.T) {
 		Mode:          "strict",
 		Compatible:    false,
 		Violations: []TargetOrigin{
-			{Name: ".bar", Kind: "selector", Introduced: "1.1.0", Found: true},
+			{Name: ".bar", Kind: "selector", Introduced: "1.1.0", Found: true, Versions: []string{"1.1.0", "1.2.0"}},
 		},
 		Warnings: []TargetOrigin{
 			{Name: ".baz", Kind: "selector", Introduced: "1.0.5", Found: true},
@@ -419,6 +455,9 @@ func TestCompatCheckResultMarshalTOML(t *testing.T) {
 	}
 	if !strings.Contains(s, "unknown") {
 		t.Errorf("expected unknown in TOML, got %s", s)
+	}
+	if !strings.Contains(s, "versions") {
+		t.Errorf("expected versions in TOML, got %s", s)
 	}
 }
 

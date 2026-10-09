@@ -20,22 +20,22 @@ const (
 )
 
 type TargetOrigin struct {
-	Name       string `json:"name" yaml:"name" toml:"name"`
-	Kind       string `json:"kind" yaml:"kind" toml:"kind"`
-	Introduced string `json:"introduced,omitempty" yaml:"introduced,omitempty" toml:"introduced,omitempty"`
-	Found      bool   `json:"found" yaml:"found" toml:"found"`
+	Name       string   `json:"name" yaml:"name" toml:"name"`
+	Kind       string   `json:"kind" yaml:"kind" toml:"kind"`
+	Introduced string   `json:"introduced,omitempty" yaml:"introduced,omitempty" toml:"introduced,omitempty"`
+	Found      bool     `json:"found" yaml:"found" toml:"found"`
 	Versions   []string `json:"versions,omitempty" yaml:"versions,omitempty" toml:"versions,omitempty"`
 }
 
 type CompatCheckResult struct {
-	TargetVersion string          `json:"target_version" yaml:"target_version" toml:"target_version"`
-	ThemePath     string          `json:"theme_path" yaml:"theme_path" toml:"theme_path"`
-	Mode          string          `json:"mode" yaml:"mode" toml:"mode"`
-	Compatible    bool            `json:"compatible" yaml:"compatible" toml:"compatible"`
-	Violations    []TargetOrigin  `json:"violations,omitempty" yaml:"violations,omitempty" toml:"violations,omitempty"`
-	Warnings      []TargetOrigin  `json:"warnings,omitempty" yaml:"warnings,omitempty" toml:"warnings,omitempty"`
-	Unknown       []TargetOrigin  `json:"unknown,omitempty" yaml:"unknown,omitempty" toml:"unknown,omitempty"`
-	AllChecked    []TargetOrigin  `json:"all_checked,omitempty" yaml:"all_checked,omitempty" toml:"all_checked,omitempty"`
+	TargetVersion string         `json:"target_version" yaml:"target_version" toml:"target_version"`
+	ThemePath     string         `json:"theme_path" yaml:"theme_path" toml:"theme_path"`
+	Mode          string         `json:"mode" yaml:"mode" toml:"mode"`
+	Compatible    bool           `json:"compatible" yaml:"compatible" toml:"compatible"`
+	Violations    []TargetOrigin `json:"violations,omitempty" yaml:"violations,omitempty" toml:"violations,omitempty"`
+	Warnings      []TargetOrigin `json:"warnings,omitempty" yaml:"warnings,omitempty" toml:"warnings,omitempty"`
+	Unknown       []TargetOrigin `json:"unknown,omitempty" yaml:"unknown,omitempty" toml:"unknown,omitempty"`
+	AllChecked    []TargetOrigin `json:"all_checked,omitempty" yaml:"all_checked,omitempty" toml:"all_checked,omitempty"`
 }
 
 func FindOrigins(targets []string, isVariables bool, versions []string) []TargetOrigin {
@@ -47,8 +47,8 @@ func FindOrigins(targets []string, isVariables bool, versions []string) []Target
 	results := make([]TargetOrigin, len(targets))
 	for i, target := range targets {
 		results[i] = TargetOrigin{
-			Name: target,
-			Kind: kind,
+			Name:  target,
+			Kind:  kind,
 			Found: false,
 		}
 	}
@@ -102,6 +102,9 @@ func CheckCompatibility(themeTargets []string, isVariables bool, targetVersion s
 	for _, origin := range origins {
 		if !origin.Found {
 			result.Unknown = append(result.Unknown, origin)
+			if mode == CompatModeStrict {
+				result.Compatible = false
+			}
 			continue
 		}
 
@@ -201,10 +204,10 @@ func (r *CompatCheckResult) encodeTOML(w io.Writer) error {
 		"mode":           r.Mode,
 		"compatible":     r.Compatible,
 		"counts": map[string]int{
-			"total_checked":    len(r.AllChecked),
-			"violations":       len(r.Violations),
-			"warnings":         len(r.Warnings),
-			"unknown":          len(r.Unknown),
+			"total_checked": len(r.AllChecked),
+			"violations":    len(r.Violations),
+			"warnings":      len(r.Warnings),
+			"unknown":       len(r.Unknown),
 		},
 	}
 	if len(r.Violations) > 0 {

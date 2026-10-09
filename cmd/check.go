@@ -15,6 +15,7 @@ func NewCheckCmd() *cobra.Command {
 	var format string
 	var output string
 	var silent bool
+	var compatMode string
 
 	cmd := &cobra.Command{
 		Use:   "check <version> <theme.css>",
@@ -24,6 +25,11 @@ them against a local theme file. The report lists variables that are missing
 from the theme (present in the target) and variables that the theme defines
 that are not in the target.
 
+When --compat-mode is set (strict or relaxed), also run a compatibility
+check on the theme's CSS variables against the target version, using all
+cached versions as the origin search space. In strict mode, an
+incompatible result yields a non-zero exit code.
+
 The report is printed to stdout by default. Use --output to write it
 to a specific directory. Use --silent to suppress the on-screen report.
 File export defaults to the current working directory.
@@ -31,7 +37,8 @@ File export defaults to the current working directory.
 Examples:
   ocd check 1.12.7 ./my-theme.css
   ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
-  ocd check 1.12.7 ./my-theme.css --silent --output ~/reports`,
+  ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
+  ocd check 1.12.7 ./my-theme.css --compat-mode strict`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
@@ -51,6 +58,9 @@ Examples:
 			}
 			if output == "" {
 				output = cfg.CheckDir
+			}
+			if compatMode == "" && cfg.CheckCompatMode != "" {
+				compatMode = cfg.CheckCompatMode
 			}
 
 			if _, err := os.Stat(themePath); err != nil {
@@ -73,6 +83,24 @@ Examples:
 			}
 
 			report := core.CompareVariables(version, themePath, targetVars, themeVars)
+
+			if compatMode != "" {
+				cachedVersions, listErr := core.ListCachedVersions()
+				if listErr == nil && len(cachedVersions) > 0 {
+					themeVarNames := core.VariableNames(themeVars)
+					mode := core.CompatModeRelaxed
+					if strings.EqualFold(compatMode, "strict") {
+						mode = core.CompatModeStrict
+					}
+					compatReport := core.CheckCompatibility(themeVarNames, true, version, mode, cachedVersions)
+					if !silent {
+						fmt.Print(compatReport.String())
+					}
+					if mode == core.CompatModeStrict && !compatReport.Compatible {
+						return fmt.Errorf("compatibility check failed in strict mode")
+					}
+				}
+			}
 
 			if !silent {
 				fmt.Print(report.String())
@@ -104,6 +132,7 @@ Examples:
 	cmd.Flags().StringVarP(&format, "format", "f", "toml", "Export format: toml (default), json, or yaml")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
 	cmd.Flags().BoolVarP(&silent, "silent", "s", false, "Suppress stdout report (file export still occurs)")
+	cmd.Flags().StringVar(&compatMode, "compat-mode", "", "Compatibility mode: strict or relaxed")
 	return cmd
 }
 

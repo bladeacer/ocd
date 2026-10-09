@@ -35,7 +35,8 @@ Unset fields keep their command default.
 |------|-----------|---------|-------------|
 | `--format` | `check_format` | `"toml"` | Export format: `toml`, `json`, or `yaml` |
 | `--output` | `check_dir` | `""` | Output directory for check exports. Falls back to cwd when empty. |
-| `--output` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
+| `--silent` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
+| `--compat-mode` | `check_compat_mode` | `""` | Compatibility mode: `strict` or `relaxed`. When set, run `CheckCompatibility` on the theme's CSS variables against the target version, using all cached versions as the origin search space. In strict mode, an incompatible result yields a non-zero exit code. |
 
 ## origin
 

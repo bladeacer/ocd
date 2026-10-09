@@ -144,12 +144,18 @@ ocd clean
 ocd check 1.12.7 ./my-theme.css
 ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
 ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
+ocd check 1.12.7 ./my-theme.css --compat-mode strict
 ```
 
 Extract the CSS variables from a target Obsidian version and compare them
 against a local theme file. The report lists variables that are missing from
 the theme (present in the target) and variables that the theme defines that are
 not in the target.
+
+When `--compat-mode` is set to `strict` or `relaxed`, the command also runs a
+compatibility check on the theme's CSS variables against the target version,
+using all cached versions as the origin search space. In strict mode, an
+incompatible result yields a non-zero exit code.
 
 ## Configuration
 

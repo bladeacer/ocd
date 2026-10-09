@@ -83,8 +83,9 @@ type Config struct {
 	OutputDir string `toml:"output_dir,omitempty"`
 
 	// Check command defaults.
-	CheckFormat string `toml:"check_format,omitempty"`
-	CheckDir    string `toml:"check_dir,omitempty"`
+	CheckFormat     string `toml:"check_format,omitempty"`
+	CheckDir        string `toml:"check_dir,omitempty"`
+	CheckCompatMode string `toml:"check_compat_mode,omitempty"`
 }
 
 // Resolve finds and loads the effective configuration for the current working
@@ -195,6 +196,9 @@ func mergeInto(dst, src *Config) {
 	if src.CheckDir != "" {
 		dst.CheckDir = src.CheckDir
 	}
+	if src.CheckCompatMode != "" {
+		dst.CheckCompatMode = src.CheckCompatMode
+	}
 }
 
 // String returns a human-readable description of the config sources that
@@ -240,6 +244,9 @@ func (c *Config) String() string {
 	}
 	if c.CheckDir != "" {
 		fmt.Fprintf(&b, " check_dir=%q", c.CheckDir)
+	}
+	if c.CheckCompatMode != "" {
+		fmt.Fprintf(&b, " check_compat_mode=%q", c.CheckCompatMode)
 	}
 	b.WriteString("}")
 	return b.String()

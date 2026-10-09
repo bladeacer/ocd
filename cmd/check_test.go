@@ -24,6 +24,9 @@ func TestNewCheckCmd(t *testing.T) {
 	if c.Flag("silent") == nil {
 		t.Error("expected --silent flag")
 	}
+	if c.Flag("compat-mode") == nil {
+		t.Error("expected --compat-mode flag")
+	}
 }
 
 func TestMarshalReportTOML(t *testing.T) {
@@ -83,5 +86,16 @@ func TestMarshalReportDefaultFormat(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Error("expected non-empty output for default format")
+	}
+}
+
+func TestCheckCmdCompatModeFlag(t *testing.T) {
+	c := NewCheckCmd()
+	flag := c.Flag("compat-mode")
+	if flag == nil {
+		t.Fatal("expected --compat-mode flag")
+	}
+	if flag.DefValue != "" {
+		t.Errorf("expected empty default for --compat-mode, got %q", flag.DefValue)
 	}
 }

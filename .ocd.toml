@@ -27,6 +27,7 @@ stat_dir = "~/reports"
 # check command defaults
 check_format = "toml"
 check_dir = "~/reports"
+check_compat_mode = "relaxed"
 
 # origin command defaults
 origin_format = "toml"
