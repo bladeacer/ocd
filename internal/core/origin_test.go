@@ -709,3 +709,74 @@ type failingWriter struct{}
 func (failingWriter) Write(p []byte) (int, error) {
 	return 0, fmt.Errorf("write failed")
 }
+
+func TestFindOriginReportsScannedVersions(t *testing.T) {
+	dir := t.TempDir()
+	orig := CSSDir
+	CSSDir = dir
+	defer func() { CSSDir = orig }()
+
+	for _, v := range []string{"1.0.0", "1.1.0", "1.2.0"} {
+		vDir := filepath.Join(dir, v)
+		if err := os.MkdirAll(vDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		css := ".old {}"
+		if v != "1.0.0" {
+			css += "\n.messageBar {}"
+		}
+		if err := os.WriteFile(filepath.Join(vDir, "app.css"), []byte(css), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 1.3.0 is requested but has no cached CSS, so it cannot be searched.
+	res := FindOrigin(".messageBar", false, []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0"})
+
+	if res.Scanned != 3 {
+		t.Errorf("Scanned = %d, want 3", res.Scanned)
+	}
+	if res.Introduced != "1.1.0" {
+		t.Errorf("Introduced = %q, want 1.1.0", res.Introduced)
+	}
+	out := res.String()
+	if !strings.Contains(out, "searched:    3 versions") {
+		t.Errorf("expected a searched line, got %q", out)
+	}
+}
+
+func TestOriginResultNotFoundMentionsCoverage(t *testing.T) {
+	r := &OriginResult{Target: "--missing", Kind: "variable", Scanned: 12}
+	out := r.String()
+	if !strings.Contains(out, "not found in any of the 12 searched versions") {
+		t.Errorf("expected the coverage count in the message, got %q", out)
+	}
+}
+
+func TestOriginResultMarshalIncludesScanned(t *testing.T) {
+	r := &OriginResult{Target: ".x", Kind: "selector", Found: true, Introduced: "1.1.0", Scanned: 9}
+
+	jsonOut, err := r.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	if !strings.Contains(string(jsonOut), "\"scanned\": 9") {
+		t.Errorf("JSON missing scanned: %s", jsonOut)
+	}
+
+	tomlOut, err := r.MarshalTOML()
+	if err != nil {
+		t.Fatalf("MarshalTOML: %v", err)
+	}
+	if !strings.Contains(string(tomlOut), "scanned = 9") {
+		t.Errorf("TOML missing scanned: %s", tomlOut)
+	}
+
+	yamlOut, err := r.MarshalYAML()
+	if err != nil {
+		t.Fatalf("MarshalYAML: %v", err)
+	}
+	if !strings.Contains(string(yamlOut), "scanned: 9") {
+		t.Errorf("YAML missing scanned: %s", yamlOut)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,13 +18,23 @@ func NewOriginCmd() *cobra.Command {
 	var format string
 	var output string
 	var refresh bool
+	var cacheDays int
 
 	cmd := &cobra.Command{
 		Use:   "origin <selector|variable>",
 		Short: "Find the earliest public desktop Obsidian version where a selector or variable was introduced",
-		Long: `Search cached app.css across public desktop Obsidian versions and
-report the earliest version where the given selector or CSS variable was
-first introduced.
+		Long: `Search app.css across public desktop Obsidian versions and report
+the earliest version where the given selector or CSS variable was first
+introduced.
+
+The command caches app.css for every public desktop version on demand, so
+the answer covers the whole public history instead of the few versions that
+happen to be cached already. The first run downloads every release and takes
+some time. Later runs reuse the cache.
+
+Cached app.css is reused for 14 days. After that it is downloaded again. Use
+--cache-days to change the age, --refresh to download everything again now,
+or 'ocd clean <version>' to drop a single entry.
 
 Targets starting with -- are treated as CSS variables; all others are
 treated as selectors. When the target itself starts with --, use the --
@@ -53,6 +64,9 @@ Examples:
 			if !cmd.Flags().Changed("output") && cfg.OriginDir != "" {
 				output = cfg.OriginDir
 			}
+			if !cmd.Flags().Changed("cache-days") {
+				cacheDays = cfg.CacheDaysOrDefault(core.DefaultCacheDays)
+			}
 			if format == "" {
 				format = "toml"
 			}
@@ -60,7 +74,7 @@ Examples:
 			target := args[0]
 			isVariable := strings.HasPrefix(target, "--")
 
-			c, err := cache.New(0)
+			c, err := cache.New(metadataTTL(cacheDays))
 			if err != nil {
 				return fmt.Errorf("cache init: %w", err)
 			}
@@ -69,17 +83,26 @@ Examples:
 			fetchResult := f.FetchAll(refresh)
 
 			var versions []string
-			var rssVersions []string
 			if len(fetchResult.RSS) > 0 {
-				rssVersions = core.PublicDesktopVersions(fetchResult.RSS)
+				versions = core.PublicDesktopVersions(fetchResult.RSS)
 			}
 			cachedVersions, listErr := core.ListCachedVersions()
 			if listErr == nil {
-				versions = core.MergeVersions(rssVersions, cachedVersions)
+				versions = core.MergeVersions(versions, cachedVersions)
 			}
-			if len(versions) == 0 && len(rssVersions) > 0 {
-				versions = rssVersions
+			if len(versions) == 0 {
+				return fmt.Errorf("no Obsidian versions found: %w", fetchResult.Error)
 			}
+
+			// Cache every version so the search covers the whole public
+			// history, not only the versions that happen to be cached.
+			sweep := core.EnsureAllCSS(core.SweepOptions{
+				Versions:  versions,
+				CacheDays: cacheDays,
+				Force:     refresh,
+				Log:       os.Stderr,
+			})
+			fmt.Fprintf(os.Stderr, "Cache: %s\n", sweep.String())
 
 			originResult := core.FindOrigin(target, isVariable, versions)
 			fmt.Print(originResult.String())
@@ -107,8 +130,18 @@ Examples:
 
 	cmd.Flags().StringVarP(&format, "format", "f", "toml", "Export format: toml (default), json, or yaml")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
-	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "Force refresh metadata cache")
+	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "Force refresh metadata cache and download every app.css again")
+	cmd.Flags().IntVar(&cacheDays, "cache-days", core.DefaultCacheDays, "Days a cached app.css stays fresh before it is downloaded again. 0 disables expiry.")
 	return cmd
+}
+
+// metadataTTL turns the cache age in days into a lifetime for the version
+// metadata cache. Zero or less disables expiry for that cache too.
+func metadataTTL(cacheDays int) time.Duration {
+	if cacheDays <= 0 {
+		return 0
+	}
+	return time.Duration(cacheDays) * 24 * time.Hour
 }
 
 func marshalOrigin(r *core.OriginResult, format string) ([]byte, error) {

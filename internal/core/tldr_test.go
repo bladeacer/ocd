@@ -478,9 +478,9 @@ func TestCopyFile(t *testing.T) {
 	if err := os.WriteFile(src, []byte("body {}"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	err := copyFile(src, dst)
+	err := copyFileAtomic(src, dst)
 	if err != nil {
-		t.Fatalf("copyFile: %v", err)
+		t.Fatalf("copyFileAtomic: %v", err)
 	}
 	data, err := os.ReadFile(dst)
 	if err != nil {

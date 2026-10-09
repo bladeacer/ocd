@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildMinimalASARGzIsValid(t *testing.T) {
@@ -175,5 +176,143 @@ func TestExtractCSSDecompressError(t *testing.T) {
 	_, err := ExtractCSS("1.0.0")
 	if err == nil {
 		t.Fatal("expected error for corrupted gzip")
+	}
+}
+
+func TestCSSCachedAndModTime(t *testing.T) {
+	useTempCSSDir(t)
+
+	if CSSCached("1.0.0") {
+		t.Error("CSSCached should be false for a missing entry")
+	}
+	if _, err := CSSModTime("1.0.0"); err == nil {
+		t.Error("CSSModTime should fail for a missing entry")
+	}
+	if err := os.MkdirAll(filepath.Dir(CSSPath("1.0.0")), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(CSSPath("1.0.0"), []byte("body{}"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if !CSSCached("1.0.0") {
+		t.Error("CSSCached should be true once app.css exists")
+	}
+	mod, err := CSSModTime("1.0.0")
+	if err != nil {
+		t.Fatalf("CSSModTime: %v", err)
+	}
+	if time.Since(mod) > time.Minute {
+		t.Errorf("mod time looks wrong: %v", mod)
+	}
+}
+
+func TestCSSFresh(t *testing.T) {
+	useTempCSSDir(t)
+
+	if CSSFresh("1.0.0", 24*time.Hour) {
+		t.Error("a missing entry is never fresh")
+	}
+	if err := os.MkdirAll(filepath.Dir(CSSPath("1.0.0")), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(CSSPath("1.0.0"), []byte("body{}"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if !CSSFresh("1.0.0", time.Hour) {
+		t.Error("a new entry should be fresh within the window")
+	}
+	if !CSSFresh("1.0.0", 0) {
+		t.Error("a zero ttl means entries never expire")
+	}
+
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(CSSPath("1.0.0"), old, old); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+	if CSSFresh("1.0.0", time.Hour) {
+		t.Error("an entry older than the window should not be fresh")
+	}
+	if !CSSFresh("1.0.0", 0) {
+		t.Error("a zero ttl means an aged entry is still used")
+	}
+}
+
+func TestExtractCSSForceReplacesCachedFile(t *testing.T) {
+	useTempCSSDir(t)
+	orig := CSSDir
+	CSSDir = t.TempDir()
+	defer func() { CSSDir = orig }()
+
+	if err := os.MkdirAll(filepath.Dir(CSSPath("1.0.0")), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(CSSPath("1.0.0"), []byte("stale{}"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	origURL := asarReleaseURL
+	origClient := httpClient
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(buildMinimalASARGz(t))
+	}))
+	defer ts.Close()
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
+	httpClient = ts.Client()
+	defer func() { asarReleaseURL = origURL; httpClient = origClient }()
+
+	// Without force the cached copy wins.
+	if _, err := ExtractCSS("1.0.0"); err != nil {
+		t.Fatalf("ExtractCSS: %v", err)
+	}
+	data, err := os.ReadFile(CSSPath("1.0.0"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "stale{}" {
+		t.Fatalf("ExtractCSS replaced the cache: %q", string(data))
+	}
+
+	if _, err := ExtractCSSForce("1.0.0"); err != nil {
+		t.Fatalf("ExtractCSSForce: %v", err)
+	}
+	data, err = os.ReadFile(CSSPath("1.0.0"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) == "stale{}" {
+		t.Error("ExtractCSSForce did not replace the cached file")
+	}
+}
+
+func TestExtractCSSLeavesNoPartialFileOnFailure(t *testing.T) {
+	useTempCSSDir(t)
+
+	origURL := asarReleaseURL
+	origClient := httpClient
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Valid gzip header, but the payload is not a usable ASAR archive.
+		_, _ = w.Write([]byte("not an asar"))
+	}))
+	defer ts.Close()
+	asarReleaseURL = ts.URL + "/v%s/obsidian-%s.asar.gz"
+	httpClient = ts.Client()
+	defer func() { asarReleaseURL = origURL; httpClient = origClient }()
+
+	if _, err := ExtractCSS("1.0.0"); err == nil {
+		t.Fatal("expected an extraction error")
+	}
+	if CSSCached("1.0.0") {
+		t.Error("a failed extraction must not leave an app.css in the cache")
+	}
+
+	entries, err := os.ReadDir(filepath.Dir(CSSPath("1.0.0")))
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			t.Errorf("temporary file %q was left behind", e.Name())
+		}
 	}
 }

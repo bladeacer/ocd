@@ -23,6 +23,7 @@ type OriginResult struct {
 	Kind       string   `json:"kind" yaml:"kind" toml:"kind"`
 	Introduced string   `json:"introduced,omitempty" yaml:"introduced,omitempty" toml:"introduced,omitempty"`
 	Found      bool     `json:"found" yaml:"found" toml:"found"`
+	Scanned    int      `json:"scanned" yaml:"scanned" toml:"scanned"`
 	Versions   []string `json:"versions,omitempty" yaml:"versions,omitempty" toml:"versions,omitempty"`
 }
 
@@ -144,7 +145,8 @@ func MergeVersions(rssVersions, cachedVersions []string) []string {
 // FindOrigin scans the cached CSS for each version (sorted ascending) and
 // returns the earliest version where target was first introduced.
 // The versions argument should contain the public desktop version strings
-// to search; versions without cached CSS are silently skipped.
+// to search. Versions without cached CSS are skipped, and the number of
+// versions actually searched is reported in the result.
 func FindOrigin(target string, isVariable bool, versions []string) *OriginResult {
 	kind := "selector"
 	if isVariable {
@@ -164,6 +166,7 @@ func FindOrigin(target string, isVariable bool, versions []string) *OriginResult
 		if err != nil {
 			continue
 		}
+		result.Scanned++
 		var present bool
 		if isVariable {
 			present = ContainsVariable(string(css), target)
@@ -186,6 +189,7 @@ func (r *OriginResult) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Origin: %s\n", r.Target)
 	fmt.Fprintf(&b, "  kind:        %s\n", r.Kind)
+	fmt.Fprintf(&b, "  searched:    %d versions\n", r.Scanned)
 	if r.Found {
 		fmt.Fprintf(&b, "  introduced:  %s\n", r.Introduced)
 		if len(r.Versions) == 1 {
@@ -194,7 +198,7 @@ func (r *OriginResult) String() string {
 			fmt.Fprintf(&b, "  found in:    %s (%d versions)\n", strings.Join(r.Versions, ", "), len(r.Versions))
 		}
 	} else {
-		b.WriteString("  not found in any cached public desktop version\n")
+		fmt.Fprintf(&b, "  not found in any of the %d searched versions\n", r.Scanned)
 	}
 	return b.String()
 }
@@ -222,9 +226,10 @@ func (r *OriginResult) MarshalTOML() ([]byte, error) {
 func (r *OriginResult) encodeTOML(w io.Writer) error {
 	encoder := toml.NewEncoder(w)
 	v := map[string]any{
-		"target": r.Target,
-		"kind":   r.Kind,
-		"found":  r.Found,
+		"target":  r.Target,
+		"kind":    r.Kind,
+		"found":   r.Found,
+		"scanned": r.Scanned,
 	}
 	if r.Introduced != "" {
 		v["introduced"] = r.Introduced

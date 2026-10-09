@@ -130,12 +130,17 @@ Picker mode (when called with `-p`):
 
 ```bash
 ocd extract 1.12.7
+ocd extract 1.12.7 --refresh      # download again, ignoring the cache
 ```
+
+A version that is already cached is not downloaded again. The command says
+so and points to `--refresh` and `ocd clean <version>`.
 
 ### Clean cache
 
 ```bash
 ocd clean
+ocd clean 1.12.7    # remove a single version
 ```
 
 ### Check theme variables
@@ -145,6 +150,7 @@ ocd check 1.12.7 ./my-theme.css
 ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
 ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
 ocd check 1.12.7 ./my-theme.css --compat-mode strict
+ocd check 1.12.7 ./my-theme.css --compat-mode strict --compat-sweep
 ```
 
 Extract the CSS variables from a target Obsidian version and compare them
@@ -153,9 +159,12 @@ the theme (present in the target) and variables that the theme defines that are
 not in the target.
 
 When `--compat-mode` is set to `strict` or `relaxed`, the command also runs a
-compatibility check on the theme's CSS variables against the target version,
-using all cached versions as the origin search space. In strict mode, an
-incompatible result yields a non-zero exit code.
+compatibility check on the theme's CSS variables against the target version.
+The check searches the versions already cached, so run `ocd origin` or add
+`--compat-sweep` to cache every public desktop version first. A check on a
+thin cache gives a wrong answer, because a variable that looks new may only
+be missing from the cache. In strict mode, an incompatible result yields a
+non-zero exit code.
 
 ## Configuration
 
@@ -290,13 +299,25 @@ version_b = "1.12.7"
 ocd origin .messageBar                           # find earliest version with this selector
 ocd origin -- --my-var                           # find earliest version with this variable
 ocd origin ".my-selector" --format json --output ~/reports  # export result
-ocd origin ".my-selector" --refresh              # force refresh version metadata
+ocd origin ".my-selector" --refresh              # force refresh metadata and CSS cache
+ocd origin --cache-days 30 -- .my-selector       # keep cached CSS for 30 days
 ```
 
-Search cached `app.css` across public desktop Obsidian versions (from the
+Search `app.css` across public desktop Obsidian versions (from the
 RSS changelog) and report the earliest version where the given selector or
 CSS variable was first introduced. Targets starting with `--` are treated as
 CSS variables; use `--` as a separator to pass them as arguments.
+
+The command caches `app.css` for every public desktop version on demand, so
+the answer covers the whole public history instead of only the versions that
+are already cached. The first run downloads every release, which takes some
+time and about 880 MB. Later runs reuse the cache.
+
+Cached CSS is reused for 14 days. After that it is downloaded again. Use
+`--cache-days` or `cache_days` in config to change the age, `--refresh` to
+download everything again now, or `ocd clean <version>` to drop a single
+entry. Versions with no GitHub release are reported as `unavailable` and
+skipped.
 
 Results are printed to stdout and exported to the current working directory
 by default. Use `--output` or `origin_dir` in config to specify a target

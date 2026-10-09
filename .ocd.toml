@@ -33,6 +33,11 @@ check_compat_mode = "relaxed"
 origin_format = "toml"
 origin_dir = "~/reports"
 
+# cache defaults
+# cache_days is how many days a cached app.css stays fresh.
+# Set it to 0 to keep cached entries until you remove them by hand.
+cache_days = 14
+
 # Common output directory fallback for all commands
 output_dir = "~/reports"
 

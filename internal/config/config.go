@@ -79,6 +79,12 @@ type Config struct {
 	OriginFormat string `toml:"origin_format,omitempty"`
 	OriginDir    string `toml:"origin_dir,omitempty"`
 
+	// Cache defaults.
+	// CacheDays is how many days a cached entry stays fresh. A nil value
+	// means "not set in config"; commands fall back to 14 days. A value of
+	// zero in a config file disables expiry.
+	CacheDays *int `toml:"cache_days,omitempty"`
+
 	// Common output defaults.
 	OutputDir string `toml:"output_dir,omitempty"`
 
@@ -187,6 +193,10 @@ func mergeInto(dst, src *Config) {
 	if src.OriginDir != "" {
 		dst.OriginDir = src.OriginDir
 	}
+	if src.CacheDays != nil {
+		v := *src.CacheDays
+		dst.CacheDays = &v
+	}
 	if src.OutputDir != "" {
 		dst.OutputDir = src.OutputDir
 	}
@@ -199,6 +209,15 @@ func mergeInto(dst, src *Config) {
 	if src.CheckCompatMode != "" {
 		dst.CheckCompatMode = src.CheckCompatMode
 	}
+}
+
+// CacheDaysOrDefault returns the configured cache age in days. It returns
+// fallback when the config file does not set cache_days.
+func (c *Config) CacheDaysOrDefault(fallback int) int {
+	if c.CacheDays != nil {
+		return *c.CacheDays
+	}
+	return fallback
 }
 
 // String returns a human-readable description of the config sources that
@@ -235,6 +254,9 @@ func (c *Config) String() string {
 	}
 	if c.OriginDir != "" {
 		fmt.Fprintf(&b, " origin_dir=%q", c.OriginDir)
+	}
+	if c.CacheDays != nil {
+		fmt.Fprintf(&b, " cache_days=%d", *c.CacheDays)
 	}
 	if c.OutputDir != "" {
 		fmt.Fprintf(&b, " output_dir=%q", c.OutputDir)

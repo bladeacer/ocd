@@ -7,8 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/bladeacer/ocd/internal/cache"
 	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
+	"github.com/bladeacer/ocd/internal/sources"
 )
 
 func NewCheckCmd() *cobra.Command {
@@ -16,6 +18,8 @@ func NewCheckCmd() *cobra.Command {
 	var output string
 	var silent bool
 	var compatMode string
+	var compatSweep bool
+	var cacheDays int
 
 	cmd := &cobra.Command{
 		Use:   "check <version> <theme.css>",
@@ -26,9 +30,10 @@ from the theme (present in the target) and variables that the theme defines
 that are not in the target.
 
 When --compat-mode is set (strict or relaxed), also run a compatibility
-check on the theme's CSS variables against the target version, using all
-cached versions as the origin search space. In strict mode, an
-incompatible result yields a non-zero exit code.
+check on the theme's CSS variables against the target version. By default
+the check searches the app.css versions already cached, so run 'ocd origin'
+or use --compat-sweep to cache every public desktop version first. In strict
+mode, an incompatible result yields a non-zero exit code.
 
 The report is printed to stdout by default. Use --output to write it
 to a specific directory. Use --silent to suppress the on-screen report.
@@ -38,7 +43,8 @@ Examples:
   ocd check 1.12.7 ./my-theme.css
   ocd check 1.12.7 ./my-theme.css --format json --output ~/reports
   ocd check 1.12.7 ./my-theme.css --silent --output ~/reports
-  ocd check 1.12.7 ./my-theme.css --compat-mode strict`,
+  ocd check 1.12.7 ./my-theme.css --compat-mode strict
+  ocd check 1.12.7 ./my-theme.css --compat-mode strict --compat-sweep`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
@@ -62,6 +68,9 @@ Examples:
 			if compatMode == "" && cfg.CheckCompatMode != "" {
 				compatMode = cfg.CheckCompatMode
 			}
+			if !cmd.Flags().Changed("cache-days") {
+				cacheDays = cfg.CacheDaysOrDefault(core.DefaultCacheDays)
+			}
 
 			if _, err := os.Stat(themePath); err != nil {
 				return fmt.Errorf("theme %q: %w", themePath, err)
@@ -84,21 +93,28 @@ Examples:
 
 			report := core.CompareVariables(version, themePath, targetVars, themeVars)
 
+			cachedVersions, _ := core.ListCachedVersions()
+
 			if compatMode != "" {
-				cachedVersions, listErr := core.ListCachedVersions()
-				if listErr == nil && len(cachedVersions) > 0 {
+				compatVersions := cachedVersions
+				if compatSweep {
+					compatVersions = sweepAllVersions(cfg, cacheDays, false)
+				}
+				if len(compatVersions) > 0 {
 					themeVarNames := core.VariableNames(themeVars)
 					mode := core.CompatModeRelaxed
 					if strings.EqualFold(compatMode, "strict") {
 						mode = core.CompatModeStrict
 					}
-					compatReport := core.CheckCompatibility(themeVarNames, true, version, mode, cachedVersions)
+					compatReport := core.CheckCompatibility(themeVarNames, true, version, mode, compatVersions)
 					if !silent {
 						fmt.Print(compatReport.String())
 					}
 					if mode == core.CompatModeStrict && !compatReport.Compatible {
 						return fmt.Errorf("compatibility check failed in strict mode")
 					}
+				} else if compatSweep {
+					return fmt.Errorf("no cached versions available for the compatibility check")
 				}
 			}
 
@@ -133,7 +149,47 @@ Examples:
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output directory (supports ~, $HOME, $XDG_CONFIG_HOME). Defaults to cwd.")
 	cmd.Flags().BoolVarP(&silent, "silent", "s", false, "Suppress stdout report (file export still occurs)")
 	cmd.Flags().StringVar(&compatMode, "compat-mode", "", "Compatibility mode: strict or relaxed")
+	cmd.Flags().BoolVar(&compatSweep, "compat-sweep", false, "Cache app.css for every public desktop version before the compatibility check, so the check covers the whole public history")
+	cmd.Flags().IntVar(&cacheDays, "cache-days", core.DefaultCacheDays, "Days a cached app.css stays fresh before it is downloaded again. 0 disables expiry.")
 	return cmd
+}
+
+// sweepAllVersions fetches the public desktop version list and makes sure
+// app.css is cached for every version. It returns the versions that can be
+// searched after the sweep.
+func sweepAllVersions(cfg *config.Config, cacheDays int, force bool) []string {
+	c, err := cache.New(metadataTTL(cacheDays))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cache init: %v\n", err)
+		return nil
+	}
+
+	fetchResult := sources.NewFetcher(c).FetchAll(force)
+
+	var versions []string
+	if len(fetchResult.RSS) > 0 {
+		versions = core.PublicDesktopVersions(fetchResult.RSS)
+	}
+	if cached, listErr := core.ListCachedVersions(); listErr == nil {
+		versions = core.MergeVersions(versions, cached)
+	}
+	if len(versions) == 0 {
+		return nil
+	}
+
+	sweep := core.EnsureAllCSS(core.SweepOptions{
+		Versions:  versions,
+		CacheDays: cacheDays,
+		Force:     force,
+		Log:       os.Stderr,
+	})
+	fmt.Fprintf(os.Stderr, "Cache: %s\n", sweep.String())
+
+	searchable, listErr := core.ListCachedVersions()
+	if listErr != nil {
+		return nil
+	}
+	return searchable
 }
 
 func marshalReport(r *core.VariableReport, format string) ([]byte, error) {

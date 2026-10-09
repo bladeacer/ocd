@@ -262,3 +262,88 @@ func findSubstr(s, substr string) bool {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+func TestResolveCacheDays(t *testing.T) {
+	wd := t.TempDir()
+	cfgDir := filepath.Join(t.TempDir(), "ocd")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(cfgDir, "config.toml")
+	if err := os.WriteFile(cfgPath, []byte("cache_days = 30\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("XDG_CONFIG_HOME")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(cfgDir))
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+
+	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if cfg.CacheDays == nil {
+		t.Fatal("expected cache_days to be set")
+	}
+	if got := cfg.CacheDaysOrDefault(14); got != 30 {
+		t.Errorf("CacheDaysOrDefault = %d, want 30", got)
+	}
+}
+
+func TestResolveCacheDaysZeroDisablesExpiry(t *testing.T) {
+	wd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(wd, ".ocd.toml"), []byte("cache_days = 0\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("XDG_CONFIG_HOME")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+
+	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if cfg.CacheDays == nil {
+		t.Fatal("an explicit cache_days = 0 must be kept, not treated as unset")
+	}
+	if got := cfg.CacheDaysOrDefault(14); got != 0 {
+		t.Errorf("CacheDaysOrDefault = %d, want 0", got)
+	}
+}
+
+func TestCacheDaysOrDefaultUnset(t *testing.T) {
+	cfg := &Config{}
+	if cfg.CacheDays != nil {
+		t.Fatal("expected CacheDays to be nil by default")
+	}
+	if got := cfg.CacheDaysOrDefault(14); got != 14 {
+		t.Errorf("CacheDaysOrDefault = %d, want the fallback 14", got)
+	}
+}
+
+func TestLocalCacheDaysOverridesGlobal(t *testing.T) {
+	wd := t.TempDir()
+	cfgDir := filepath.Join(t.TempDir(), "ocd")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte("cache_days = 30\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wd, ".ocd.toml"), []byte("cache_days = 7\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("XDG_CONFIG_HOME")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Dir(cfgDir))
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", orig) }()
+
+	cfg, err := ResolveIn(func() (string, error) { return wd, nil })
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := cfg.CacheDaysOrDefault(14); got != 7 {
+		t.Errorf("CacheDaysOrDefault = %d, want 7 from the local file", got)
+	}
+}

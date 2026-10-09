@@ -36,7 +36,9 @@ Unset fields keep their command default.
 | `--format` | `check_format` | `"toml"` | Export format: `toml`, `json`, or `yaml` |
 | `--output` | `check_dir` | `""` | Output directory for check exports. Falls back to cwd when empty. |
 | `--silent` | _(CLI only)_ | `false` | Suppress stdout report (file export still occurs) |
-| `--compat-mode` | `check_compat_mode` | `""` | Compatibility mode: `strict` or `relaxed`. When set, run `CheckCompatibility` on the theme's CSS variables against the target version, using all cached versions as the origin search space. In strict mode, an incompatible result yields a non-zero exit code. |
+| `--compat-mode` | `check_compat_mode` | `""` | Compatibility mode: `strict` or `relaxed`. When set, run `CheckCompatibility` on the theme's CSS variables against the target version, using the cached versions as the origin search space. In strict mode, an incompatible result yields a non-zero exit code. |
+| `--compat-sweep` | _(CLI only)_ | `false` | Cache `app.css` for every public desktop version before the compatibility check, so the check covers the whole public history |
+| `--cache-days` | `cache_days` | `14` | Days a cached `app.css` stays fresh before it is downloaded again. `0` disables expiry |
 
 ## origin
 
@@ -44,13 +46,43 @@ Unset fields keep their command default.
 |------|-----------|---------|-------------|
 | `--format` | `origin_format` | `"toml"` | Export format: `toml`, `json`, or `yaml` |
 | `--output` | `origin_dir` | `""` | Output directory for origin exports. Falls back to cwd when empty. |
-| `--refresh` | _(CLI only)_ | `false` | Force refresh metadata cache |
+| `--refresh` | _(CLI only)_ | `false` | Force refresh metadata cache and download every `app.css` again |
+| `--cache-days` | `cache_days` | `14` | Days a cached `app.css` stays fresh before it is downloaded again. `0` disables expiry |
+
+## extract
+
+| Flag | Config Key | Default | Description |
+|------|-----------|---------|-------------|
+| `--from-file` | _(CLI only)_ | `""` | Import a local `.asar` or `.css` file instead of downloading from GitHub |
+| `--refresh` | _(CLI only)_ | `false` | Download the version again even when it is already cached |
 
 ## Common
 
 | Flag | Config Key | Default | Description |
 |------|-----------|---------|-------------|
 | `--output` | `output_dir` | `""` | Common output directory fallback. Falls back to cwd when empty. |
+| `--cache-days` | `cache_days` | `14` | Days a cached `app.css` and the version metadata cache stay fresh. `0` disables expiry |
+
+## Cache behaviour
+
+`ocd` keeps two caches in `.obsidian_cache/`:
+
+- `app.css` files, one directory per version
+- version metadata from the RSS feed, Docker Hub, and the Electron map
+
+`ocd origin` needs the whole public history to answer correctly, so it
+downloads every public desktop version that is missing or expired before it
+searches. The first run is large: about 98 versions, roughly 880 MB of
+downloads. Later runs reuse the cache and do no downloads.
+
+Cached entries are reused for 14 days. After that they are downloaded again,
+because Obsidian can republish or correct a release. Use `--cache-days` to
+change the age, `--refresh` to download everything again now, and
+`ocd clean <version>` to drop a single entry.
+
+Versions with no GitHub release are reported as `unavailable` and skipped.
+They are checked again on the next sweep, so a release that appears later is
+picked up without any action.
 
 ## diff_keys
 
@@ -98,6 +130,14 @@ stat_dir = "~/reports"
 # check command defaults
 check_format = "toml"
 check_dir = "~/reports"
+check_compat_mode = "relaxed"
+
+# origin command defaults
+origin_format = "toml"
+origin_dir = "~/reports"
+
+# cache defaults
+cache_days = 14
 
 # Common output directory
 output_dir = "~/reports"

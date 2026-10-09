@@ -2,6 +2,7 @@ package core
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,11 @@ var asarReleaseURL = "https://github.com/obsidianmd/obsidian-releases/releases/d
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
+// ErrNoRelease reports that GitHub has no ASAR release for a version.
+// Callers use errors.Is to tell a missing release apart from a network
+// failure, so a sweep can skip such versions instead of retrying them.
+var ErrNoRelease = errors.New("no asar release")
+
 func ImportFile(srcPath, label string) (string, error) {
 	destDir := filepath.Join(CSSDir, label)
 	destFile := filepath.Join(destDir, "app.css")
@@ -28,11 +34,11 @@ func ImportFile(srcPath, label string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	switch ext {
 	case ".asar":
-		if err := extractAppCSSFromASAR(srcPath, destFile); err != nil {
+		if err := extractCSSAtomic(srcPath, destFile); err != nil {
 			return "", fmt.Errorf("extract asar %q: %w", srcPath, err)
 		}
 	case ".css":
-		if err := copyFile(srcPath, destFile); err != nil {
+		if err := copyFileAtomic(srcPath, destFile); err != nil {
 			return "", fmt.Errorf("copy css %q: %w", srcPath, err)
 		}
 	default:
@@ -42,29 +48,26 @@ func ImportFile(srcPath, label string) (string, error) {
 	return destFile, nil
 }
 
-func copyFile(src, dst string) error {
-	s, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = s.Close() }()
-
-	d, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = d.Close() }()
-
-	_, err = io.Copy(d, s)
-	return err
+func ExtractCSS(version string) (string, error) {
+	return extractCSS(version, false)
 }
 
-func ExtractCSS(version string) (string, error) {
+// ExtractCSSForce downloads and extracts app.css even when a cached copy
+// already exists. Use it to renew a cache entry that has expired.
+func ExtractCSSForce(version string) (string, error) {
+	return extractCSS(version, true)
+}
+
+// extractCSS downloads the ASAR bundle for version and writes app.css into the
+// CSS cache. Unless force is set, an existing cached copy is returned as is.
+func extractCSS(version string, force bool) (string, error) {
 	destDir := filepath.Join(CSSDir, version)
 	destFile := filepath.Join(destDir, "app.css")
 
-	if _, err := os.Stat(destFile); err == nil {
-		return destFile, nil
+	if !force {
+		if _, err := os.Stat(destFile); err == nil {
+			return destFile, nil
+		}
 	}
 
 	if err := os.MkdirAll(destDir, 0755); err != nil {
@@ -80,7 +83,7 @@ func ExtractCSS(version string) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", fmt.Errorf("no asar release for v%s (not found on GitHub)", version)
+		return "", fmt.Errorf("no asar release for v%s (not found on GitHub): %w", version, ErrNoRelease)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download asar.gz for v%s: HTTP %d", version, resp.StatusCode)
@@ -105,9 +108,102 @@ func ExtractCSS(version string) (string, error) {
 	}
 	_ = tmpAsar.Close()
 
-	if err := extractAppCSSFromASAR(tmpPath, destFile); err != nil {
+	if err := extractCSSAtomic(tmpPath, destFile); err != nil {
 		return "", fmt.Errorf("extract app.css for v%s: %w", version, err)
 	}
 
 	return destFile, nil
+}
+
+// CSSPath returns the cache path of app.css for a version.
+func CSSPath(version string) string {
+	return filepath.Join(CSSDir, version, "app.css")
+}
+
+// CSSCached reports whether app.css for a version is present in the cache.
+func CSSCached(version string) bool {
+	_, err := os.Stat(CSSPath(version))
+	return err == nil
+}
+
+// CSSModTime returns the time when the cached app.css was last written.
+// Callers use it to decide whether a cache entry has expired.
+func CSSModTime(version string) (time.Time, error) {
+	info, err := os.Stat(CSSPath(version))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
+// CSSFresh reports whether the cached app.css for a version is still fresh.
+// A ttl of zero or less means entries never expire.
+func CSSFresh(version string, ttl time.Duration) bool {
+	if ttl <= 0 {
+		return CSSCached(version)
+	}
+	mod, err := CSSModTime(version)
+	if err != nil {
+		return false
+	}
+	return time.Since(mod) <= ttl
+}
+
+// extractCSSAtomic writes app.css to a temporary file in the destination
+// directory and renames it into place. A failed or interrupted extraction
+// therefore never leaves a partial app.css in the cache.
+func extractCSSAtomic(asarPath, destPath string) error {
+	tmpPath, cleanup, err := tempPathIn(destPath)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	if err := extractAppCSSFromASAR(asarPath, tmpPath); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, destPath)
+}
+
+// copyFileAtomic copies src to dst through a temporary file in the
+// destination directory, then renames it into place.
+func copyFileAtomic(src, dst string) error {
+	tmpPath, cleanup, err := tempPathIn(dst)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = s.Close() }()
+
+	d, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(d, s); err != nil {
+		_ = d.Close()
+		return err
+	}
+	if err := d.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, dst)
+}
+
+// tempPathIn creates a temporary file next to dest and returns its path with
+// a cleanup function that removes it.
+func tempPathIn(dest string) (string, func(), error) {
+	f, err := os.CreateTemp(filepath.Dir(dest), filepath.Base(dest)+".tmp-*")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("create temp file: %w", err)
+	}
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		return "", func() { _ = os.Remove(path) }, fmt.Errorf("close temp file: %w", err)
+	}
+	return path, func() { _ = os.Remove(path) }, nil
 }

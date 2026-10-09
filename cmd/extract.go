@@ -12,6 +12,7 @@ import (
 
 func NewExtractCmd() *cobra.Command {
 	var fromFile string
+	var refresh bool
 
 	cmd := &cobra.Command{
 		Use:   "extract <version|label>",
@@ -19,8 +20,12 @@ func NewExtractCmd() *cobra.Command {
 		Long: `Download the Obsidian ASAR bundle for a given version from GitHub releases
 and extract app.css, or import a local .asar/.css file with --from-file.
 
+A version that is already cached is not downloaded again. Use --refresh to
+download it again, or 'ocd clean <version>' to remove the cached copy.
+
 Usage:
   ocd extract 1.12.7                          # download from GitHub
+  ocd extract 1.12.7 --refresh                # download again, ignoring the cache
   ocd extract --from-file ./obsidian.asar      # import local asar (label from filename)
   ocd extract --from-file ./obsidian.asar my-label  # import with explicit label
   ocd extract --from-file ./custom.css my-theme     # import local css`,
@@ -45,7 +50,12 @@ Usage:
 				return fmt.Errorf("usage: extract <version> or extract --from-file <path> [label]")
 			}
 			version := args[0]
-			path, err := core.ExtractCSS(version)
+			if !refresh && core.CSSCached(version) {
+				fmt.Printf("Already cached: %s\n", core.CSSPath(version))
+				fmt.Println("Use --refresh to download it again, or 'ocd clean " + version + "' to remove it.")
+				return nil
+			}
+			path, err := core.ExtractCSSForce(version)
 			if err != nil {
 				return fmt.Errorf("extract v%s: %w", version, err)
 			}
@@ -55,5 +65,6 @@ Usage:
 	}
 
 	cmd.Flags().StringVar(&fromFile, "from-file", "", "Import a local .asar or .css file instead of downloading from GitHub")
+	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "Download the version again even when it is already cached")
 	return cmd
 }

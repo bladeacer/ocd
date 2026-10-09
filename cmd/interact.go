@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bladeacer/ocd/internal/cache"
+	"github.com/bladeacer/ocd/internal/config"
 	"github.com/bladeacer/ocd/internal/core"
 	"github.com/bladeacer/ocd/internal/sources"
 	"github.com/bladeacer/ocd/internal/tui"
@@ -21,7 +22,11 @@ func NewInteractCmd() *cobra.Command {
 filter by type (desktop/mobile), search, and select a version
 for CSS extraction and diffing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := cache.New(0)
+			cfg, cfgErr := config.Resolve()
+			if cfgErr != nil {
+				return cfgErr
+			}
+			c, err := cache.New(metadataTTL(cfg.CacheDaysOrDefault(core.DefaultCacheDays)))
 			if err != nil {
 				return fmt.Errorf("cache init: %w", err)
 			}

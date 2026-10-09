@@ -29,6 +29,9 @@ ocd/
 │   ├── interact.go           # ocd interact (TUI browser)
 │   ├── extract.go            # ocd extract <version|label>
 │   ├── stat.go               # ocd stat <version>
+│   ├── origin.go             # ocd origin <selector|variable> (full version sweep)
+│   ├── origin_test.go        # Tests for the origin command
+│   ├── cache_test.go         # Tests for cache flags and helpers
 │   └── clean.go              # ocd clean [label]
 ├── docs/
 │   ├── CONFIG.md           # Full configuration reference
@@ -37,19 +40,30 @@ ocd/
 │       ├── 0.1.0.md          # v0.1.0 changelog
 │       ├── 0.2.0.md          # v0.2.0 changelog
 │       ├── 0.3.0.md          # v0.3.0 changelog
-│       └── 0.4.0.md          # v0.4.0 changelog
+│       ├── 0.4.0.md          # v0.4.0 changelog
+│       ├── 0.5.0.md          # v0.5.0 changelog
+│       ├── 0.6.0.md          # v0.6.0 changelog
+│       └── 0.7.0.md          # v0.7.0 changelog
 ├── internal/
-│   ├── cache/                # Cache management for extracted CSS
+│   ├── cache/                # Cache management for version metadata
+│   │   ├── cache.go          # Store with TTL-based expiry
+│   │   └── cache_test.go     # Tests for the metadata cache
 │   ├── config/               # OS-aware configuration file resolution
 │   │   ├── config.go         # Config struct and Resolve/ResolveIn functions
 │   │   └── config_test.go    # Tests for config resolution
 │   ├── core/                 # Shared business logic
+│   │   ├── asar.go           # ASAR archive parsing
+│   │   ├── compat.go         # Theme compatibility checking
 │   │   ├── diff.go           # DiffCSS and related helpers
 │   │   ├── diff_test.go      # Tests for CSS diffing
 │   │   ├── export.go         # Generalised ExportFile helper
 │   │   ├── export_test.go    # Tests for ExportFile and helpers
-│   │   ├── extract.go        # ExtractCSS, ImportFile, copyFile
+│   │   ├── extract.go        # ExtractCSS, ExtractCSSForce, freshness helpers
 │   │   ├── extract_test.go   # Tests for extraction
+│   │   ├── origin.go         # FindOrigin and version list helpers
+│   │   ├── origin_test.go    # Tests for origin search
+│   │   ├── sweep.go          # EnsureAllCSS cache sweep with concurrency
+│   │   ├── sweep_test.go     # Tests for the cache sweep
 │   │   ├── tldr.go           # TLDR analysis, marshaling, and rendering
 │   │   ├── tldr_test.go      # Tests for TLDR analysis
 │   │   ├── variables.go      # CSS variable extraction and comparison
@@ -109,6 +123,22 @@ derivation.
 directory when no output directory is configured via `--output` flag or
 the corresponding `*_dir` config key. Use `output_dir` in config as a
 global fallback.
+
+### Version Sweep
+
+`origin` and `check --compat-sweep` need the whole public history to answer
+correctly, so they call `core.EnsureAllCSS` before searching. The sweep
+downloads the versions that are missing or expired, 8 at a time, and writes
+progress to stderr.
+
+Freshness uses the modification time of the cached `app.css`. There is no
+separate metadata file, so the cache has one source of truth. `cache_days`
+sets the age and defaults to 14 days. `--refresh` forces a full re-download.
+A version with no GitHub release returns `core.ErrNoRelease` and is counted
+as unavailable, not as a failure.
+
+Analysis commands (`stat`, `diff`, `check`) do not sweep. They reuse the
+cached copy of the one or two versions they need.
 
 ### Diff Viewer Keybinds
 

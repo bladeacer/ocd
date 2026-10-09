@@ -96,7 +96,7 @@ Direct command-line flags always take priority over config file values.`,
 				versionA = args[0]
 				versionB = args[1]
 			} else if interactive || len(args) == 0 {
-				c, err := cache.New(0)
+				c, err := cache.New(metadataTTL(cfg.CacheDaysOrDefault(core.DefaultCacheDays)))
 				if err != nil {
 					return fmt.Errorf("cache init: %w", err)
 				}
