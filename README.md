@@ -360,7 +360,7 @@ make clean       # remove binary and cache
 ```
 
 `make watch` uses [air](https://github.com/air-verse/air) and the file
-`air.toml`. Install air first:
+`.air.toml`. Install air first:
 
 ```bash
 go install github.com/air-verse/air@latest

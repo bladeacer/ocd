@@ -1,7 +1,8 @@
 # air configuration for ocd development.
-# Run `make watch` (or `air -c air.toml`) in the repository root to rebuild
-# and rerun the app on save. Air reads .air.toml by default, so the flag names
-# this file.
+# Run `make watch` (or `air`) in the repository root to rebuild and rerun the
+# app on save. Air loads .air.toml by default, so no config flag is needed.
+# A file called air.toml is not loaded by default. Air then uses its own
+# defaults, builds ./tmp/main, and runs that binary.
 root = "."
 testdata_dir = "testdata"
 tmp_dir = "bin"

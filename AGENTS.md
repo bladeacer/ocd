@@ -92,7 +92,7 @@ ocd/
 ├── .ocd.toml             # Sample per-project config file (feature parity with CLI)
 ├── .obsidian_cache/          # Cached extracted CSS files
 ├── Makefile                  # Build, test, cover, fmt, lint, watch targets
-├── air.toml                  # air hot-reload config used by `make watch`
+├── .air.toml             # air hot-reload config used by `make watch`
 ├── main.go                   # Application entry point
 ├── go.mod                    # Go module definition
 ├── go.sum                    # Go module checksums
