@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Links |
 |---------|------|-------|
+| [0.11.0](0.11.0.md) | 2026-10-16 | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
 | [0.10.0](0.10.0.md) | 2026-10-13 | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
 | [0.9.0](0.9.0.md)  | 2026-10-09 | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
 | [0.8.0](0.8.0.md)  | 2026-10-09 | [GitHub Releases](https://github.com/bladeacer/ocd/releases) |
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See the individual version pages below for full details.
 
+- [0.11.0](0.11.0.md)
 - [0.10.0](0.10.0.md)
 - [0.9.0](0.9.0.md)
 - [0.8.0](0.8.0.md)

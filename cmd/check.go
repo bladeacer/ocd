@@ -95,7 +95,8 @@ Examples:
 				return fmt.Errorf("read app.css for %s: %w", version, err)
 			}
 
-			targetVars := core.ExtractCSSVariables(string(css))
+			targetIdx := core.ParseCSS(string(css))
+			targetVars := targetIdx.VariableList()
 			theme, err := core.ReadTheme(themePath)
 			if err != nil {
 				return fmt.Errorf("read theme %q: %w", themePath, err)
@@ -114,7 +115,7 @@ Examples:
 			var selectorReport *core.SelectorReport
 			if !noSelectors {
 				selectorReport = core.CompareSelectors(version, themePath,
-					core.ParseCSS(string(css)), theme.Index)
+					targetIdx, theme.Index)
 			}
 
 			cachedVersions, _ := core.ListCachedVersions()

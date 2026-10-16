@@ -7,6 +7,16 @@ import (
 	"testing"
 )
 
+func TestResolveDirect(t *testing.T) {
+	cfg, err := Resolve()
+	if err != nil {
+		t.Fatalf("Resolve should not error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("Resolve must return a non-nil config")
+	}
+}
+
 func TestStringShowsEverySetField(t *testing.T) {
 	yes := true
 	days := 7
